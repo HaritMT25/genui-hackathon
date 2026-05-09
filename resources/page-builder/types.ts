@@ -4,6 +4,11 @@ export const propSchema = z.object({
   businessName: z.string(),
   tagline: z.string().optional(),
   heroImageUrl: z.string().nullable().optional(),
+  globalStyles: z.object({
+    fontFamily: z.string().optional(),
+    accentColor: z.string().optional(),
+    borderRadius: z.string().optional(),
+  }).optional(),
   sections: z.array(
     z.object({
       id: z.string(),
@@ -35,6 +40,20 @@ export const propSchema = z.object({
       options: z.array(z.string()).optional(),
     })
   ),
+  _analysis: z.object({
+    issues: z.array(z.object({
+      sectionId: z.string(),
+      severity: z.string(),
+      issue: z.string(),
+      suggestion: z.string(),
+      autoFix: z.object({
+        tool: z.string(),
+        args: z.record(z.any()),
+      }).optional(),
+    })).optional(),
+    overallScore: z.number().optional(),
+    summary: z.string().optional(),
+  }).optional(),
 });
 
 export type PageBuilderProps = z.infer<typeof propSchema>;
