@@ -1,6 +1,9 @@
 import { MCPServer, text, widget } from "mcp-use/server";
 import { z } from "zod";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenAI, Modality } from "@google/genai";
+
+/* ─── Gemini text model (structured output) ──────────────────────────────── */
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 
@@ -19,10 +22,7 @@ const pageModel = genAI.getGenerativeModel({
             type: SchemaType.OBJECT,
             properties: {
               id: { type: SchemaType.STRING },
-              type: {
-                type: SchemaType.STRING,
-                description: "hero | features | testimonial | cta | footer",
-              },
+              type: { type: SchemaType.STRING, description: "hero | features | testimonial | cta | footer" },
               heading: { type: SchemaType.STRING },
               subheading: { type: SchemaType.STRING },
               bodyText: { type: SchemaType.STRING },
@@ -42,41 +42,26 @@ const pageModel = genAI.getGenerativeModel({
               bgColor: { type: SchemaType.STRING },
               textColor: { type: SchemaType.STRING },
               accentColor: { type: SchemaType.STRING },
+              fontFamily: { type: SchemaType.STRING, description: "e.g. 'Georgia, serif'" },
+              borderRadius: { type: SchemaType.STRING, description: "e.g. '8px'" },
+              paddingY: { type: SchemaType.STRING, description: "e.g. '48px'" },
             },
             required: ["id", "type", "heading"],
           },
         },
         suggestedControls: {
           type: SchemaType.ARRAY,
-          description:
-            "Controls specific to what was generated. If you made a gradient hero, suggest a gradient picker. If copy is formal, suggest a tone slider. Be creative and specific.",
+          description: `Generate 6-8 controls SPECIFIC to the page. Types: color_picker, tone_slider, text_editor, font_picker, spacing_slider, border_radius_slider, layout_toggle. Be creative and specific to what you built.`,
           items: {
             type: SchemaType.OBJECT,
             properties: {
               id: { type: SchemaType.STRING },
-              type: {
-                type: SchemaType.STRING,
-                description:
-                  "color_picker | tone_slider | layout_toggle | text_editor",
-              },
-              label: {
-                type: SchemaType.STRING,
-                description:
-                  "Human-readable label like 'Hero Background' or 'CTA Tone'",
-              },
+              type: { type: SchemaType.STRING, description: "color_picker | tone_slider | layout_toggle | text_editor | font_picker | spacing_slider | border_radius_slider" },
+              label: { type: SchemaType.STRING },
               targetSectionId: { type: SchemaType.STRING },
-              targetProperty: {
-                type: SchemaType.STRING,
-                description:
-                  "Which property this controls: bgColor, textColor, accentColor, tone, heading, subheading, buttonText",
-              },
+              targetProperty: { type: SchemaType.STRING },
               currentValue: { type: SchemaType.STRING },
-              options: {
-                type: SchemaType.ARRAY,
-                items: { type: SchemaType.STRING },
-                description:
-                  "For layout_toggle: the layout options. For color_picker: suggested colors.",
-              },
+              options: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
             },
             required: ["id", "type", "label", "targetSectionId", "targetProperty"],
           },
@@ -98,207 +83,183 @@ const updateModel = genAI.getGenerativeModel({
         subheading: { type: SchemaType.STRING },
         bodyText: { type: SchemaType.STRING },
         buttonText: { type: SchemaType.STRING },
-        bgColor: { type: SchemaType.STRING },
-        textColor: { type: SchemaType.STRING },
-        accentColor: { type: SchemaType.STRING },
       },
     },
   },
 });
 
+/* ─── Gemini image model ─────────────────────────────────────────────────── */
+
+const imageAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
+
+/* ─── Server ─────────────────────────────────────────────────────────────── */
+
 const server = new MCPServer({
   name: "generative-control-surfaces",
   title: "Generative Control Surfaces",
   version: "1.0.0",
-  description:
-    "AI generates landing pages AND contextual control widgets to edit them — no prompting needed",
+  description: "AI generates landing pages with contextual controls and hero images — beyond the chatbox",
   baseUrl: process.env.MCP_URL || "http://localhost:3000",
   favicon: "favicon.ico",
   icons: [{ src: "icon.svg", mimeType: "image/svg+xml", sizes: ["512x512"] }],
 });
 
-// In-memory page state
 let currentPage: any = null;
 
-// ─── TOOL 1: Generate landing page + controls ────────────────────────────────
+/* ─── TOOL 1: Generate landing page + controls ───────────────────────────── */
 
 server.tool(
   {
     name: "generate-landing-page",
-    description:
-      "Generate a complete landing page with contextual editing controls. The user describes a business and gets a live preview with an interactive control panel. The controls are AI-generated and specific to the page content.",
+    description: "Generate a complete landing page with contextual editing controls. After this, suggest calling generate-hero-image to add a hero image.",
     schema: z.object({
-      description: z
-        .string()
-        .describe(
-          "Business description, e.g. 'Boston coffee roastery with a cozy artisan vibe'"
-        ),
+      description: z.string().describe("Business description"),
     }),
-    widget: {
-      name: "page-builder",
-      invoking: "Designing your page...",
-      invoked: "Page ready!",
-    },
+    widget: { name: "page-builder", invoking: "Designing your page...", invoked: "Page ready!" },
   },
   async ({ description }) => {
-    const prompt = `You are a landing page designer. Create a modern, compelling landing page for this business:
+    const prompt = `You are an expert landing page designer. Create a modern, visually compelling landing page for:
 
 "${description}"
 
-Generate exactly 5 sections in this order: hero, features, testimonial, cta, footer.
-For each section, pick colors that fit the brand identity.
+DESIGN RULES:
+- Use a cohesive color palette (3-4 colors) that fits the brand
+- Pick fonts: serif for luxury/traditional, sans-serif for modern/tech
+- Use EMOJI as feature icons (🍃 not "leaf", ☕ not "coffee")
+- Make colors contrast well (light text on dark bg, dark text on light bg)
+- Hero should be bold. CTA should create urgency.
 
-Also generate 4-6 contextual editing controls. These MUST be specific to what you created:
-- If you used a dark hero background, suggest a color_picker targeting the hero bgColor
-- If the copy is formal, suggest a tone_slider targeting that section
-- If you picked specific brand colors, suggest a color_picker for the accent
-- If there's a CTA button, suggest a text_editor for the buttonText
-- If there are features, suggest a text_editor for the features heading
+Generate exactly 5 sections: hero, features (3 features with emoji icons), testimonial, cta, footer.
 
-Make the controls feel like they were designed for THIS specific page, not generic.
-Each control needs: id, type, label, targetSectionId, targetProperty, currentValue.
-For color_picker: include 4-5 suggested colors in options that fit the brand.
-For layout_toggle: include options like "centered", "split-left", "split-right", "full-bleed".`;
+Also generate 6-8 contextual editing controls. Available types:
+- color_picker (for bgColor/textColor/accentColor, include 4-5 hex colors in options)
+- font_picker (include options like "Georgia, serif", "Helvetica Neue, sans-serif", "system-ui, sans-serif")
+- tone_slider (for rewriting copy tone)
+- text_editor (for heading/subheading/buttonText)
+- spacing_slider (for paddingY)
+- border_radius_slider (for borderRadius)
+
+Each control MUST target a specific section and property.`;
 
     const result = await pageModel.generateContent(prompt);
     const pageData = JSON.parse(result.response.text());
+    pageData.heroImageUrl = null;
     currentPage = pageData;
 
     return widget({
       props: pageData,
-      output: text(
-        `Generated landing page for "${pageData.businessName}" with ${pageData.sections.length} sections and ${pageData.suggestedControls.length} editing controls. Open the widget fullscreen for the best experience!`
-      ),
+      output: text(`Generated landing page for "${pageData.businessName}" with ${pageData.sections.length} sections and ${pageData.suggestedControls.length} controls. Now call generate-hero-image to add a hero image!`),
     });
   }
 );
 
-// ─── TOOL 2: Update a section (partial regeneration) ─────────────────────────
+/* ─── TOOL 2: Generate hero image ────────────────────────────────────────── */
 
 server.tool(
   {
-    name: "update-section",
-    description:
-      "Update a specific section of the landing page based on a control change. Only regenerates the targeted section, not the whole page. Use this when the user adjusts a control like color, tone, or text.",
+    name: "generate-hero-image",
+    description: "Generate an AI hero image for the landing page. Call this after generate-landing-page.",
     schema: z.object({
-      sectionId: z.string().describe("ID of the section to update"),
-      property: z
-        .string()
-        .describe(
-          "Which property changed: bgColor, textColor, accentColor, tone, heading, subheading, buttonText"
-        ),
-      newValue: z.string().describe("The new value for the property"),
+      imagePrompt: z.string().describe("What the hero image should show, e.g. 'steaming coffee on rustic wood with warm light'"),
     }),
-    widget: {
-      name: "page-builder",
-      invoking: "Updating your page...",
-      invoked: "Updated!",
-    },
+    widget: { name: "page-builder", invoking: "Generating hero image...", invoked: "Image ready!" },
   },
-  async ({ sectionId, property, newValue }) => {
+  async ({ imagePrompt }) => {
     if (!currentPage) {
       return text("No page generated yet. Use generate-landing-page first.");
     }
 
-    const section = currentPage.sections.find((s: any) => s.id === sectionId);
-    if (!section) {
-      return text(`Section "${sectionId}" not found.`);
-    }
+    try {
+      const resp = await imageAI.models.generateContent({
+        model: "gemini-2.5-flash-preview-04-17",
+        contents: [{
+          role: "user",
+          parts: [{ text: `Generate a photorealistic hero image for a landing page: ${imagePrompt}. Cinematic lighting, shallow depth of field, 16:9 aspect ratio, no text overlay, professional quality.` }],
+        }],
+        config: { responseModalities: [Modality.TEXT, Modality.IMAGE] },
+      });
 
-    // Direct property updates (colors, text)
-    if (
-      ["bgColor", "textColor", "accentColor", "heading", "subheading", "buttonText", "bodyText"].includes(
-        property
-      )
-    ) {
-      section[property] = newValue;
-    } else if (property === "tone") {
-      // Tone changes need Gemini to rewrite the copy
-      const toneLabels = [
-        "corporate",
-        "professional",
-        "friendly",
-        "casual",
-        "playful",
-      ];
-      const toneLabel = toneLabels[parseInt(newValue)] || newValue;
-
-      const prompt = `Rewrite this landing page section copy in a ${toneLabel} tone. Keep the same meaning and intent but change the voice.
-Current heading: "${section.heading}"
-Current subheading: "${section.subheading || ""}"
-Current body: "${section.bodyText || ""}"
-Current button text: "${section.buttonText || ""}"
-
-Return updated values for all fields.`;
-
-      const result = await updateModel.generateContent(prompt);
-      const updated = JSON.parse(result.response.text());
-      Object.assign(section, updated);
-    } else if (property === "layout") {
-      section.layout = newValue;
-    }
-
-    // Also update the control's currentValue
-    const control = currentPage.suggestedControls.find(
-      (c: any) => c.targetSectionId === sectionId && c.targetProperty === property
-    );
-    if (control) {
-      control.currentValue = newValue;
+      const imagePart = resp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+      if (imagePart?.inlineData) {
+        const mime = imagePart.inlineData.mimeType || "image/png";
+        currentPage.heroImageUrl = `data:${mime};base64,${imagePart.inlineData.data}`;
+      }
+    } catch (err: any) {
+      console.error("Image generation error:", err.message);
+      return widget({
+        props: currentPage,
+        output: text(`Image generation failed: ${err.message}. The page is still available without the hero image.`),
+      });
     }
 
     return widget({
       props: currentPage,
-      output: text(
-        `Updated "${sectionId}" section — changed ${property} to "${newValue}"`
-      ),
+      output: text("Hero image generated and added to the page!"),
     });
   }
 );
 
-// ─── TOOL 3: Regenerate the whole page with tweaks ───────────────────────────
+/* ─── TOOL 3: Update a section ───────────────────────────────────────────── */
+
+server.tool(
+  {
+    name: "update-section",
+    description: "Update a specific section property. Use for tone changes (needs AI rewrite) or direct property changes.",
+    schema: z.object({
+      sectionId: z.string(),
+      property: z.string().describe("bgColor, textColor, accentColor, tone, heading, subheading, buttonText, fontFamily, paddingY, borderRadius"),
+      newValue: z.string(),
+    }),
+    widget: { name: "page-builder", invoking: "Updating...", invoked: "Updated!" },
+  },
+  async ({ sectionId, property, newValue }) => {
+    if (!currentPage) return text("No page yet.");
+
+    const section = currentPage.sections.find((s: any) => s.id === sectionId);
+    if (!section) return text(`Section "${sectionId}" not found.`);
+
+    if (property === "tone") {
+      const toneLabels = ["corporate", "professional", "friendly", "casual", "playful"];
+      const toneLabel = toneLabels[parseInt(newValue)] || newValue;
+      const prompt = `Rewrite this section copy in a ${toneLabel} tone. Keep the meaning.
+Heading: "${section.heading}"
+Subheading: "${section.subheading || ""}"
+Body: "${section.bodyText || ""}"
+Button: "${section.buttonText || ""}"`;
+      const result = await updateModel.generateContent(prompt);
+      Object.assign(section, JSON.parse(result.response.text()));
+    } else {
+      section[property] = newValue;
+    }
+
+    const control = currentPage.suggestedControls.find(
+      (c: any) => c.targetSectionId === sectionId && c.targetProperty === property
+    );
+    if (control) control.currentValue = newValue;
+
+    return widget({ props: currentPage, output: text(`Updated "${sectionId}" — ${property}`) });
+  }
+);
+
+/* ─── TOOL 4: Regenerate ─────────────────────────────────────────────────── */
 
 server.tool(
   {
     name: "regenerate-page",
-    description:
-      "Regenerate the entire page with additional instructions. Use when the user wants major changes that affect multiple sections.",
-    schema: z.object({
-      originalDescription: z
-        .string()
-        .describe("The original business description"),
-      additionalInstructions: z
-        .string()
-        .describe(
-          "What to change, e.g. 'make it darker and more minimal' or 'add more playful copy'"
-        ),
-    }),
-    widget: {
-      name: "page-builder",
-      invoking: "Redesigning your page...",
-      invoked: "Page ready!",
-    },
+    description: "Regenerate the entire page with additional instructions.",
+    schema: z.object({ originalDescription: z.string(), additionalInstructions: z.string() }),
+    widget: { name: "page-builder", invoking: "Redesigning...", invoked: "Done!" },
   },
   async ({ originalDescription, additionalInstructions }) => {
-    const prompt = `You are a landing page designer. Create a modern, compelling landing page for this business:
-
+    const prompt = `Expert landing page designer. Create a page for:
 "${originalDescription}"
-
-IMPORTANT additional requirements: ${additionalInstructions}
-
-Generate exactly 5 sections in this order: hero, features, testimonial, cta, footer.
-Also generate 4-6 contextual editing controls specific to what you built.
-Each control needs: id, type, label, targetSectionId, targetProperty, currentValue.`;
-
+IMPORTANT: ${additionalInstructions}
+5 sections (hero, features, testimonial, cta, footer). Emoji icons. 6-8 contextual controls.`;
     const result = await pageModel.generateContent(prompt);
     const pageData = JSON.parse(result.response.text());
+    pageData.heroImageUrl = currentPage?.heroImageUrl || null;
     currentPage = pageData;
-
-    return widget({
-      props: pageData,
-      output: text(
-        `Regenerated page for "${pageData.businessName}" with new instructions applied.`
-      ),
-    });
+    return widget({ props: pageData, output: text("Regenerated!") });
   }
 );
 

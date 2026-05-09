@@ -1,140 +1,94 @@
-import {
-  McpUseProvider,
-  useWidget,
-  type WidgetMetadata,
-} from "mcp-use/react";
-import React, { useState } from "react";
+import { McpUseProvider, useWidget, type WidgetMetadata } from "mcp-use/react";
+import React, { useState, useEffect } from "react";
 import "../styles.css";
 import { propSchema, type PageBuilderProps } from "./types";
 
 export const widgetMetadata: WidgetMetadata = {
-  description:
-    "Combined landing page preview with AI-generated contextual editing controls",
+  description: "Landing page preview with AI-generated controls and hero image",
   props: propSchema,
   exposeAsTool: false,
-  metadata: {
-    prefersBorder: true,
-    invoking: "Designing your page...",
-    invoked: "Page ready",
-  },
+  metadata: { prefersBorder: true, invoking: "Designing your page...", invoked: "Page ready" },
 };
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   COLOR PALETTES
-   ═══════════════════════════════════════════════════════════════════════════ */
 
 const PALETTES = [
   { name: "Warm", colors: ["#FF6B6B", "#FFA07A", "#FFD93D", "#6BCB77", "#4D96FF"] },
   { name: "Cool", colors: ["#4ECDC4", "#44B7D8", "#6C5CE7", "#A29BFE", "#74B9FF"] },
   { name: "Earth", colors: ["#8D6E63", "#A1887F", "#D7CCC8", "#4E342E", "#F5F0EB"] },
   { name: "Neon", colors: ["#FF006E", "#FB5607", "#FFBE0B", "#8338EC", "#3A86FF"] },
-  { name: "Mono", colors: ["#1a1a1a", "#333333", "#666666", "#999999", "#ffffff"] },
+  { name: "Dark", colors: ["#0f172a", "#1e293b", "#334155", "#475569", "#1a1a2e"] },
+  { name: "Light", colors: ["#ffffff", "#f8fafc", "#f1f5f9", "#fefce8", "#fdf2f8"] },
+];
+const TONE_LABELS = ["Corporate", "Professional", "Friendly", "Casual", "Playful"];
+const FONT_OPTIONS = [
+  { label: "System Default", value: "system-ui, -apple-system, sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Helvetica", value: "Helvetica Neue, Helvetica, sans-serif" },
+  { label: "Times", value: "Times New Roman, serif" },
+  { label: "Courier", value: "Courier New, monospace" },
+  { label: "Trebuchet", value: "Trebuchet MS, sans-serif" },
+  { label: "Verdana", value: "Verdana, sans-serif" },
+  { label: "Palatino", value: "Palatino Linotype, serif" },
 ];
 
-const TONE_LABELS = ["Corporate", "Professional", "Friendly", "Casual", "Playful"];
-
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION RENDERER
+   SECTION RENDERER — font & borderRadius now applied to ALL child elements
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function SectionRenderer({ section }: { section: any }) {
-  const style: React.CSSProperties = {
-    backgroundColor: section.bgColor || "#ffffff",
-    color: section.textColor || "#1a1a1a",
-    padding: "48px 32px",
-    fontFamily: "system-ui, -apple-system, sans-serif",
+function SectionRenderer({ section, heroImageUrl, highlighted }: { section: any; heroImageUrl?: string | null; highlighted: boolean }) {
+  const py = parseInt(section.paddingY) || 48;
+  const br = section.borderRadius || "8px";
+  const font = section.fontFamily || "system-ui, -apple-system, sans-serif";
+  const bg = section.bgColor || "#ffffff";
+  const fg = section.textColor || "#1a1a1a";
+  const accent = section.accentColor || "#3b82f6";
+
+  const wrap: React.CSSProperties = {
+    backgroundColor: bg, color: fg, padding: `${py}px 32px`, fontFamily: font,
+    transition: "all 0.35s ease", position: "relative",
+    outline: highlighted ? "3px solid #3b82f6" : "3px solid transparent", outlineOffset: "-3px",
+  };
+  const badge = highlighted ? (
+    <div style={{ position: "absolute", top: 8, left: 8, fontSize: 9, background: "#3b82f6", color: "#fff", padding: "2px 8px", borderRadius: 4, fontFamily: "system-ui", fontWeight: 600, zIndex: 5 }}>← editing</div>
+  ) : null;
+  const btnStyle: React.CSSProperties = {
+    padding: "14px 36px", borderRadius: br, border: "none", backgroundColor: accent,
+    color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer", fontFamily: font,
+    transition: "all 0.3s ease", letterSpacing: "0.02em",
   };
 
   switch (section.type) {
     case "hero":
       return (
-        <section style={style}>
+        <section style={wrap} id={`section-${section.id}`}>
+          {badge}
           <div style={{ maxWidth: 800, margin: "0 auto", textAlign: "center" }}>
-            <h1
-              style={{
-                fontSize: 42,
-                fontWeight: 800,
-                marginBottom: 12,
-                lineHeight: 1.1,
-                letterSpacing: "-0.02em",
-              }}
-            >
-              {section.heading}
-            </h1>
+            {heroImageUrl && (
+              <img src={heroImageUrl} alt="Hero" style={{
+                width: "100%", maxHeight: 340, objectFit: "cover", borderRadius: br,
+                marginBottom: 28, boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+              }} />
+            )}
+            <h1 style={{ fontSize: 48, fontWeight: 800, marginBottom: 14, lineHeight: 1.08, letterSpacing: "-0.03em", fontFamily: font }}>{section.heading}</h1>
             {section.subheading && (
-              <p
-                style={{
-                  fontSize: 18,
-                  opacity: 0.8,
-                  marginBottom: 28,
-                  lineHeight: 1.5,
-                  maxWidth: 600,
-                  marginLeft: "auto",
-                  marginRight: "auto",
-                }}
-              >
-                {section.subheading}
-              </p>
+              <p style={{ fontSize: 19, opacity: 0.75, marginBottom: 32, lineHeight: 1.6, maxWidth: 560, margin: "0 auto 32px", fontFamily: font }}>{section.subheading}</p>
             )}
-            {section.buttonText && (
-              <button
-                style={{
-                  padding: "12px 32px",
-                  borderRadius: 8,
-                  border: "none",
-                  backgroundColor: section.accentColor || "#3b82f6",
-                  color: "#ffffff",
-                  fontSize: 16,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  letterSpacing: "0.01em",
-                }}
-              >
-                {section.buttonText}
-              </button>
-            )}
+            {section.buttonText && <button style={btnStyle}>{section.buttonText}</button>}
           </div>
         </section>
       );
 
     case "features":
       return (
-        <section style={style}>
+        <section style={wrap} id={`section-${section.id}`}>
+          {badge}
           <div style={{ maxWidth: 960, margin: "0 auto" }}>
-            <h2
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                textAlign: "center",
-                marginBottom: 40,
-              }}
-            >
-              {section.heading}
-            </h2>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                gap: 32,
-              }}
-            >
-              {(section.features || []).map((feat: any, i: number) => (
-                <div key={i} style={{ textAlign: "center", padding: 16 }}>
-                  <div style={{ fontSize: 36, marginBottom: 12 }}>
-                    {feat.icon || "✨"}
-                  </div>
-                  <h3
-                    style={{
-                      fontSize: 18,
-                      fontWeight: 600,
-                      marginBottom: 8,
-                    }}
-                  >
-                    {feat.title}
-                  </h3>
-                  <p style={{ fontSize: 14, opacity: 0.7, lineHeight: 1.5 }}>
-                    {feat.description}
-                  </p>
+            <h2 style={{ fontSize: 30, fontWeight: 700, textAlign: "center", marginBottom: 48, fontFamily: font }}>{section.heading}</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 32 }}>
+              {(section.features || []).map((f: any, i: number) => (
+                <div key={i} style={{ textAlign: "center", padding: 20, borderRadius: br, background: "rgba(128,128,128,0.06)", transition: "all 0.3s ease" }}>
+                  <div style={{ fontSize: 40, marginBottom: 14 }}>{f.icon || "✨"}</div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, fontFamily: font }}>{f.title}</h3>
+                  <p style={{ fontSize: 14, opacity: 0.65, lineHeight: 1.6, fontFamily: font }}>{f.description}</p>
                 </div>
               ))}
             </div>
@@ -144,354 +98,182 @@ function SectionRenderer({ section }: { section: any }) {
 
     case "testimonial":
       return (
-        <section style={style}>
-          <div
-            style={{ maxWidth: 700, margin: "0 auto", textAlign: "center" }}
-          >
-            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.3 }}>
-              &ldquo;
-            </div>
-            <blockquote
-              style={{
-                fontSize: 22,
-                fontStyle: "italic",
-                lineHeight: 1.6,
-                marginBottom: 16,
-              }}
-            >
-              {section.heading}
-            </blockquote>
-            {section.subheading && (
-              <p style={{ fontWeight: 600, fontSize: 14 }}>
-                {section.subheading}
-              </p>
-            )}
-            {section.bodyText && (
-              <p style={{ fontSize: 13, opacity: 0.6 }}>{section.bodyText}</p>
-            )}
+        <section style={wrap} id={`section-${section.id}`}>
+          {badge}
+          <div style={{ maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
+            <div style={{ fontSize: 56, marginBottom: 12, opacity: 0.2, lineHeight: 1 }}>&ldquo;</div>
+            <blockquote style={{ fontSize: 24, fontStyle: "italic", lineHeight: 1.7, marginBottom: 20, fontFamily: font }}>{section.heading}</blockquote>
+            {section.subheading && <p style={{ fontWeight: 700, fontSize: 15, fontFamily: font }}>{section.subheading}</p>}
+            {section.bodyText && <p style={{ fontSize: 13, opacity: 0.5, fontFamily: font }}>{section.bodyText}</p>}
           </div>
         </section>
       );
 
     case "cta":
       return (
-        <section style={style}>
-          <div
-            style={{ maxWidth: 600, margin: "0 auto", textAlign: "center" }}
-          >
-            <h2
-              style={{ fontSize: 30, fontWeight: 700, marginBottom: 12 }}
-            >
-              {section.heading}
-            </h2>
-            {section.subheading && (
-              <p
-                style={{
-                  fontSize: 16,
-                  opacity: 0.8,
-                  marginBottom: 24,
-                  lineHeight: 1.5,
-                }}
-              >
-                {section.subheading}
-              </p>
-            )}
-            {section.buttonText && (
-              <button
-                style={{
-                  padding: "14px 40px",
-                  borderRadius: 8,
-                  border: "none",
-                  backgroundColor: section.accentColor || "#3b82f6",
-                  color: "#ffffff",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                {section.buttonText}
-              </button>
-            )}
+        <section style={wrap} id={`section-${section.id}`}>
+          {badge}
+          <div style={{ maxWidth: 600, margin: "0 auto", textAlign: "center" }}>
+            <h2 style={{ fontSize: 32, fontWeight: 800, marginBottom: 14, fontFamily: font }}>{section.heading}</h2>
+            {section.subheading && <p style={{ fontSize: 17, opacity: 0.75, marginBottom: 28, lineHeight: 1.6, fontFamily: font }}>{section.subheading}</p>}
+            {section.buttonText && <button style={{ ...btnStyle, padding: "16px 44px", fontSize: 18 }}>{section.buttonText}</button>}
           </div>
         </section>
       );
 
     case "footer":
       return (
-        <footer
-          style={{
-            ...style,
-            padding: "24px 32px",
-            textAlign: "center",
-            fontSize: 13,
-            opacity: 0.6,
-          }}
-        >
-          {section.heading}
+        <footer id={`section-${section.id}`} style={{ ...wrap, padding: "20px 32px", textAlign: "center", fontSize: 13, opacity: 0.5 }}>
+          {badge}{section.heading}
         </footer>
       );
 
     default:
-      return (
-        <section style={style}>
-          <p>{section.heading}</p>
-        </section>
-      );
+      return <section style={wrap}><p>{section.heading}</p></section>;
   }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CONTROL WIDGETS
+   CONTROLS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ColorPickerControl({
-  control,
-  onApply,
-}: {
-  control: any;
-  onApply: (value: string) => void;
-}) {
-  const [selected, setSelected] = useState(control.currentValue || "");
-
-  // Use suggested colors from the model if available, otherwise use palettes
-  const suggestedColors = control.options?.length ? control.options : null;
-
+function ColorPicker({ control, val, apply }: { control: any; val: string; apply: (v: string) => void }) {
+  const suggested = control.options?.length ? control.options : null;
   return (
     <div>
-      {suggestedColors && (
+      {suggested && (
         <div style={{ marginBottom: 8 }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "#9ca3af",
-              marginBottom: 4,
-            }}
-          >
-            Suggested
-          </div>
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            {suggestedColors.map((color: string) => (
-              <button
-                key={color}
-                onClick={() => {
-                  setSelected(color);
-                  onApply(color);
-                }}
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  border:
-                    selected === color
-                      ? "3px solid #000"
-                      : "2px solid transparent",
-                  backgroundColor: color,
-                  cursor: "pointer",
-                  transition: "transform 0.15s",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.transform = "scale(1.2)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.transform = "scale(1)")
-                }
-              />
+          <div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4 }}>Suggested</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {suggested.map((c: string) => (
+              <button key={c} onClick={() => apply(c)} style={{ width: 30, height: 30, borderRadius: "50%", border: val === c ? "3px solid #000" : "2px solid #e5e7eb", backgroundColor: c, cursor: "pointer", transition: "transform 0.15s" }}
+                onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.25)")} onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")} />
             ))}
           </div>
         </div>
       )}
-      {PALETTES.map((palette) => (
-        <div
-          key={palette.name}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            marginBottom: 4,
-          }}
-        >
-          <span style={{ fontSize: 10, color: "#9ca3af", width: 36 }}>
-            {palette.name}
-          </span>
-          {palette.colors.map((color) => (
-            <button
-              key={color}
-              onClick={() => {
-                setSelected(color);
-                onApply(color);
-              }}
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: "50%",
-                border:
-                  selected === color
-                    ? "2px solid #000"
-                    : "1px solid #e5e7eb",
-                backgroundColor: color,
-                cursor: "pointer",
-                transition: "transform 0.15s",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.transform = "scale(1.2)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.transform = "scale(1)")
-              }
-            />
+      {PALETTES.map(p => (
+        <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+          <span style={{ fontSize: 9, color: "#9ca3af", width: 32 }}>{p.name}</span>
+          {p.colors.map(c => (
+            <button key={c} onClick={() => apply(c)} style={{ width: 20, height: 20, borderRadius: "50%", border: val === c ? "2px solid #000" : "1px solid #e5e7eb", backgroundColor: c, cursor: "pointer", transition: "transform 0.15s" }}
+              onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.2)")} onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")} />
           ))}
         </div>
       ))}
+      <input type="color" value={val || "#000000"} onChange={e => apply(e.target.value)} style={{ width: "100%", height: 26, cursor: "pointer", marginTop: 4, border: "none", borderRadius: 4 }} />
     </div>
   );
 }
 
-function ToneSliderControl({
-  control,
-  onApply,
-}: {
-  control: any;
-  onApply: (value: string) => void;
-}) {
-  const [value, setValue] = useState(2);
+function FontPicker({ control, val, apply }: { control: any; val: string; apply: (v: string) => void }) {
+  const opts = control.options?.length
+    ? control.options.map((o: string) => ({ label: o.split(",")[0].trim(), value: o }))
+    : FONT_OPTIONS;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {(opts as any[]).map((f: any) => {
+        const fv = typeof f === "string" ? f : f.value;
+        const fl = typeof f === "string" ? f.split(",")[0].trim() : f.label;
+        const active = val === fv;
+        return (
+          <button key={fv} onClick={() => apply(fv)} style={{
+            padding: "8px 10px", borderRadius: 6, textAlign: "left",
+            border: active ? "2px solid #2563eb" : "1px solid #e5e7eb",
+            background: active ? "#eff6ff" : "#fff", cursor: "pointer",
+            fontFamily: fv, fontSize: 13, fontWeight: active ? 700 : 400,
+            color: active ? "#1d4ed8" : "#374151", transition: "all 0.2s",
+          }}>
+            {fl}
+            <span style={{ fontSize: 10, opacity: 0.5, display: "block", fontFamily: fv }}>The quick brown fox</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
+function SpacingSlider({ val, apply }: { val: string; apply: (v: string) => void }) {
+  const n = parseInt(val) || 48;
   return (
     <div>
-      <input
-        type="range"
-        min={0}
-        max={4}
-        step={1}
-        value={value}
-        onChange={(e) => {
-          const v = parseInt(e.target.value);
-          setValue(v);
-          onApply(String(v));
-        }}
-        style={{ width: "100%", accentColor: "#3b82f6" }}
-      />
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginTop: 4,
-        }}
-      >
-        {TONE_LABELS.map((label, i) => (
-          <span
-            key={label}
-            style={{
-              fontSize: 9,
-              color: i === value ? "#2563eb" : "#9ca3af",
-              fontWeight: i === value ? 700 : 400,
-            }}
-          >
-            {label}
-          </span>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+        <span style={{ fontSize: 11, color: "#6b7280" }}>Spacing</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#2563eb", fontFamily: "monospace" }}>{n}px</span>
+      </div>
+      <input type="range" min={16} max={120} step={4} value={n} onChange={e => apply(e.target.value + "px")} style={{ width: "100%", accentColor: "#3b82f6" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#9ca3af" }}><span>Compact</span><span>Spacious</span></div>
+    </div>
+  );
+}
+
+function BorderRadius({ val, apply }: { val: string; apply: (v: string) => void }) {
+  const n = parseInt(val) || 8;
+  const presets = [0, 4, 8, 16, 24, 999];
+  const labels = ["Sharp", "Subtle", "Round", "Soft", "Pill", "Full"];
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: "#6b7280" }}>Roundness</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "#2563eb", fontFamily: "monospace" }}>{n}px</span>
+      </div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+        {presets.map((v, i) => (
+          <button key={v} onClick={() => apply(v + "px")} style={{
+            flex: 1, padding: "6px 2px", fontSize: 9, borderRadius: 4, textAlign: "center",
+            border: n === v ? "2px solid #2563eb" : "1px solid #e5e7eb",
+            background: n === v ? "#eff6ff" : "#fff", color: n === v ? "#1d4ed8" : "#6b7280",
+            cursor: "pointer", fontWeight: n === v ? 700 : 400,
+          }}>
+            <div style={{ width: 18, height: 12, margin: "0 auto 2px", border: "2px solid currentColor", borderRadius: Math.min(v, 7) }} />
+            {labels[i]}
+          </button>
         ))}
+      </div>
+      <input type="range" min={0} max={32} step={1} value={Math.min(n, 32)} onChange={e => apply(e.target.value + "px")} style={{ width: "100%", accentColor: "#3b82f6" }} />
+    </div>
+  );
+}
+
+function ToneSlider({ control }: { control: any }) {
+  const [v, setV] = useState(2);
+  const [copied, setCopied] = useState(false);
+  const cmd = `Update section "${control.targetSectionId}" tone to "${TONE_LABELS[v]}"`;
+  return (
+    <div>
+      <input type="range" min={0} max={4} step={1} value={v} onChange={e => setV(parseInt(e.target.value))} style={{ width: "100%", accentColor: "#3b82f6" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+        {TONE_LABELS.map((l, i) => <span key={l} style={{ fontSize: 9, color: i === v ? "#2563eb" : "#9ca3af", fontWeight: i === v ? 700 : 400 }}>{l}</span>)}
+      </div>
+      <div onClick={() => { navigator.clipboard?.writeText(cmd); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+        style={{ marginTop: 8, padding: "6px 8px", background: "#fef3c7", borderRadius: 4, fontSize: 10, color: "#92400e", cursor: "pointer" }}>
+        ⚡ {copied ? "✓ Copied!" : "Click to copy AI rewrite command"}
+        <div style={{ fontFamily: "monospace", marginTop: 3, fontSize: 9, opacity: 0.8, wordBreak: "break-all" }}>{cmd}</div>
       </div>
     </div>
   );
 }
 
-function LayoutToggleControl({
-  control,
-  onApply,
-}: {
-  control: any;
-  onApply: (value: string) => void;
-}) {
-  const [selected, setSelected] = useState(control.currentValue || "");
-  const options = control.options?.length
-    ? control.options
-    : ["centered", "split-left", "split-right", "full-bleed"];
-  const icons: Record<string, string> = {
-    centered: "▣",
-    "split-left": "◧",
-    "split-right": "◨",
-    "full-bleed": "▬",
-  };
-
+function LayoutToggle({ control, val, apply }: { control: any; val: string; apply: (v: string) => void }) {
+  const opts = control.options?.length ? control.options : ["centered", "split-left", "split-right", "full-bleed"];
+  const icons: Record<string, string> = { centered: "▣", "split-left": "◧", "split-right": "◨", "full-bleed": "▬" };
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 6,
-      }}
-    >
-      {options.map((opt: string) => (
-        <button
-          key={opt}
-          onClick={() => {
-            setSelected(opt);
-            onApply(opt);
-          }}
-          style={{
-            padding: "8px 4px",
-            borderRadius: 6,
-            border:
-              selected === opt
-                ? "2px solid #2563eb"
-                : "1px solid #e5e7eb",
-            background:
-              selected === opt ? "#eff6ff" : "#ffffff",
-            color: selected === opt ? "#1d4ed8" : "#374151",
-            cursor: "pointer",
-            fontSize: 11,
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: 20 }}>{icons[opt] || "▢"}</div>
-          <div style={{ marginTop: 2 }}>{opt}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+      {opts.map((o: string) => (
+        <button key={o} onClick={() => apply(o)} style={{ padding: "8px 4px", borderRadius: 6, border: val === o ? "2px solid #2563eb" : "1px solid #e5e7eb", background: val === o ? "#eff6ff" : "#fff", color: val === o ? "#1d4ed8" : "#374151", cursor: "pointer", fontSize: 11, textAlign: "center" }}>
+          <div style={{ fontSize: 20 }}>{icons[o] || "▢"}</div><div style={{ marginTop: 2 }}>{o}</div>
         </button>
       ))}
     </div>
   );
 }
 
-function TextEditorControl({
-  control,
-  onApply,
-}: {
-  control: any;
-  onApply: (value: string) => void;
-}) {
-  const [value, setValue] = useState(control.currentValue || "");
-
+function TextEditor({ val, apply }: { val: string; apply: (v: string) => void }) {
+  const [v, setV] = useState(val || "");
   return (
     <div>
-      <textarea
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        rows={2}
-        style={{
-          width: "100%",
-          border: "1px solid #e5e7eb",
-          borderRadius: 6,
-          padding: 8,
-          fontSize: 13,
-          resize: "vertical",
-          fontFamily: "inherit",
-          boxSizing: "border-box",
-        }}
-      />
-      <button
-        onClick={() => onApply(value)}
-        style={{
-          marginTop: 4,
-          padding: "4px 12px",
-          fontSize: 11,
-          backgroundColor: "#2563eb",
-          color: "#fff",
-          border: "none",
-          borderRadius: 4,
-          cursor: "pointer",
-          fontWeight: 600,
-        }}
-      >
-        Apply
-      </button>
+      <textarea value={v} onChange={e => setV(e.target.value)} rows={2} style={{ width: "100%", border: "1px solid #e5e7eb", borderRadius: 6, padding: 8, fontSize: 13, resize: "vertical", fontFamily: "inherit", boxSizing: "border-box" }} />
+      <button onClick={() => apply(v)} style={{ marginTop: 4, padding: "5px 14px", fontSize: 12, backgroundColor: "#2563eb", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", fontWeight: 600 }}>✓ Apply</button>
     </div>
   );
 }
@@ -501,291 +283,106 @@ function TextEditorControl({
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const PageBuilder: React.FC = () => {
-  const { props, isPending, requestDisplayMode, displayMode } =
-    useWidget<PageBuilderProps>();
+  const { props, isPending, requestDisplayMode, displayMode } = useWidget<PageBuilderProps>();
 
-  const [pendingUpdates, setPendingUpdates] = useState<
-    { sectionId: string; property: string; value: string }[]
-  >([]);
+  const [sections, setSections] = useState<any[]>([]);
+  const [controls, setControls] = useState<any[]>([]);
+  const [businessName, setBusinessName] = useState("");
+  const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
+  const [changeCount, setChangeCount] = useState(0);
+  const [hoveredControl, setHoveredControl] = useState<string | null>(null);
 
-  if (isPending || !props) {
+  useEffect(() => {
+    if (props?.sections && props?.suggestedControls) {
+      setSections(JSON.parse(JSON.stringify(props.sections)));
+      setControls(JSON.parse(JSON.stringify(props.suggestedControls)));
+      setBusinessName(props.businessName || "");
+      setHeroImageUrl(props.heroImageUrl || null);
+    }
+  }, [props]);
+
+  if (isPending || !props || sections.length === 0) {
     return (
       <McpUseProvider autoSize>
-        <div
-          style={{
-            padding: 48,
-            textAlign: "center",
-            color: "#9ca3af",
-            fontFamily: "system-ui",
-          }}
-        >
-          <div
-            style={{
-              fontSize: 32,
-              marginBottom: 12,
-              animation: "pulse 2s infinite",
-            }}
-          >
-            ✨
-          </div>
-          <div>Designing your page...</div>
+        <div style={{ padding: 48, textAlign: "center", color: "#9ca3af", fontFamily: "system-ui" }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>✨</div><div>Designing your page...</div>
         </div>
       </McpUseProvider>
     );
   }
 
-  const handleControlApply = (
-    control: any,
-    newValue: string
-  ) => {
-    setPendingUpdates((prev) => [
-      ...prev.filter(
-        (u) =>
-          !(
-            u.sectionId === control.targetSectionId &&
-            u.property === control.targetProperty
-          )
-      ),
-      {
-        sectionId: control.targetSectionId,
-        property: control.targetProperty,
-        value: newValue,
-      },
-    ]);
+  const apply = (control: any, newValue: string) => {
+    setSections(prev => prev.map(s => s.id === control.targetSectionId ? { ...s, [control.targetProperty]: newValue } : s));
+    setControls(prev => prev.map(c => c.id === control.id ? { ...c, currentValue: newValue } : c));
+    setChangeCount(c => c + 1);
   };
-
-  const getUpdateCommand = (update: {
-    sectionId: string;
-    property: string;
-    value: string;
-  }) => {
-    return `Update section "${update.sectionId}" ${update.property} to "${update.value}"`;
+  const getVal = (control: any): string => {
+    const s = sections.find(s => s.id === control.targetSectionId);
+    return s?.[control.targetProperty] || control.currentValue || "";
   };
 
   return (
     <McpUseProvider autoSize>
-      <div
-        style={{
-          display: "flex",
-          minHeight: "100vh",
-          fontFamily: "system-ui, -apple-system, sans-serif",
-        }}
-      >
-        {/* ─── LEFT: Page Preview ─────────────────────────────── */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            background: "#ffffff",
-          }}
-        >
-          {/* Top bar */}
-          <div
-            style={{
-              position: "sticky",
-              top: 0,
-              zIndex: 10,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "8px 16px",
-              background: "rgba(255,255,255,0.9)",
-              backdropFilter: "blur(8px)",
-              borderBottom: "1px solid #f3f4f6",
-            }}
-          >
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: "#374151",
-              }}
-            >
-              📄 {props.businessName}
-            </span>
-            <button
-              onClick={() =>
-                requestDisplayMode(
-                  displayMode === "fullscreen" ? "inline" : "fullscreen"
-                )
-              }
-              style={{
-                padding: "4px 10px",
-                fontSize: 11,
-                background: "#1a1a1a",
-                color: "#fff",
-                border: "none",
-                borderRadius: 4,
-                cursor: "pointer",
-              }}
-            >
-              {displayMode === "fullscreen" ? "Exit Fullscreen" : "⛶ Fullscreen"}
+      <div style={{ display: "flex", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+
+        {/* LEFT: Preview */}
+        <div style={{ flex: 1, overflowY: "auto", background: "#fff" }}>
+          <div style={{ position: "sticky", top: 0, zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px", background: "rgba(255,255,255,0.95)", backdropFilter: "blur(8px)", borderBottom: "1px solid #f3f4f6" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>📄 {businessName}</span>
+              {changeCount > 0 && <span style={{ fontSize: 10, background: "#dbeafe", color: "#1d4ed8", padding: "2px 8px", borderRadius: 10, fontWeight: 600 }}>{changeCount} edit{changeCount > 1 ? "s" : ""}</span>}
+            </div>
+            <button onClick={() => requestDisplayMode(displayMode === "fullscreen" ? "inline" : "fullscreen")}
+              style={{ padding: "4px 10px", fontSize: 11, background: "#1a1a1a", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}>
+              {displayMode === "fullscreen" ? "↙ Exit" : "⛶ Fullscreen"}
             </button>
           </div>
-
-          {/* Page sections */}
-          {props.sections.map((section) => (
-            <SectionRenderer key={section.id} section={section} />
+          {sections.map(s => (
+            <SectionRenderer key={s.id} section={s} heroImageUrl={s.type === "hero" ? heroImageUrl : null} highlighted={hoveredControl === s.id} />
           ))}
         </div>
 
-        {/* ─── RIGHT: Control Panel ───────────────────────────── */}
-        <div
-          style={{
-            width: 280,
-            overflowY: "auto",
-            borderLeft: "1px solid #e5e7eb",
-            background: "#fafafa",
-            padding: 16,
-            flexShrink: 0,
-          }}
-        >
-          {/* Header */}
-          <div style={{ marginBottom: 16 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                marginBottom: 4,
-              }}
-            >
+        {/* RIGHT: Controls */}
+        <div style={{ width: 290, overflowY: "auto", borderLeft: "1px solid #e5e7eb", background: "#fafafa", padding: 14, flexShrink: 0 }}>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
               <span style={{ fontSize: 18 }}>🎛️</span>
-              <h2
-                style={{
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color: "#111827",
-                  margin: 0,
-                }}
-              >
-                Controls
-              </h2>
+              <h2 style={{ fontSize: 15, fontWeight: 700, color: "#111827", margin: 0 }}>Controls</h2>
             </div>
-            <p style={{ fontSize: 11, color: "#9ca3af", margin: 0 }}>
-              AI-generated controls for your page. Adjust and apply.
-            </p>
+            <p style={{ fontSize: 10, color: "#9ca3af", margin: 0 }}>AI-generated for this page. Hover to highlight target.</p>
           </div>
 
-          {/* Control widgets */}
-          {props.suggestedControls.map((control) => (
-            <div
-              key={control.id}
-              style={{
-                background: "#ffffff",
-                borderRadius: 10,
-                padding: 14,
-                marginBottom: 10,
-                border: "1px solid #f3f4f6",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-              }}
-            >
-              <div
+          {controls.map(c => {
+            const v = getVal(c);
+            return (
+              <div key={c.id}
+                onMouseEnter={() => setHoveredControl(c.targetSectionId)}
+                onMouseLeave={() => setHoveredControl(null)}
                 style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "#374151",
-                  marginBottom: 4,
-                }}
-              >
-                {control.label}
-              </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "#9ca3af",
-                  marginBottom: 10,
-                }}
-              >
-                → {control.targetSectionId} / {control.targetProperty}
-              </div>
-
-              {control.type === "color_picker" && (
-                <ColorPickerControl
-                  control={control}
-                  onApply={(val) => handleControlApply(control, val)}
-                />
-              )}
-              {control.type === "tone_slider" && (
-                <ToneSliderControl
-                  control={control}
-                  onApply={(val) => handleControlApply(control, val)}
-                />
-              )}
-              {control.type === "layout_toggle" && (
-                <LayoutToggleControl
-                  control={control}
-                  onApply={(val) => handleControlApply(control, val)}
-                />
-              )}
-              {control.type === "text_editor" && (
-                <TextEditorControl
-                  control={control}
-                  onApply={(val) => handleControlApply(control, val)}
-                />
-              )}
-            </div>
-          ))}
-
-          {/* Pending updates */}
-          {pendingUpdates.length > 0 && (
-            <div
-              style={{
-                marginTop: 16,
-                padding: 12,
-                background: "#eff6ff",
-                borderRadius: 8,
-                border: "1px solid #bfdbfe",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "#1e40af",
-                  marginBottom: 8,
-                }}
-              >
-                📋 Copy & paste to apply:
-              </div>
-              {pendingUpdates.map((update, i) => (
-                <div
-                  key={i}
-                  style={{
-                    fontSize: 11,
-                    background: "#dbeafe",
-                    padding: "6px 8px",
-                    borderRadius: 4,
-                    marginBottom: 4,
-                    fontFamily: "monospace",
-                    wordBreak: "break-all",
-                    cursor: "pointer",
-                  }}
-                  onClick={() => {
-                    navigator.clipboard?.writeText(getUpdateCommand(update));
-                  }}
-                  title="Click to copy"
-                >
-                  {getUpdateCommand(update)}
+                  background: "#fff", borderRadius: 10, padding: 12, marginBottom: 8,
+                  border: hoveredControl === c.targetSectionId ? "1px solid #93c5fd" : "1px solid #f3f4f6",
+                  boxShadow: hoveredControl === c.targetSectionId ? "0 0 0 2px rgba(59,130,246,0.1)" : "0 1px 2px rgba(0,0,0,0.04)",
+                  transition: "all 0.2s",
+                }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#374151", marginBottom: 3 }}>{c.label}</div>
+                <div style={{ fontSize: 9, color: "#9ca3af", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                  <span style={{ display: "inline-block", width: 5, height: 5, borderRadius: "50%", background: "#10b981" }} />
+                  {c.targetSectionId} → {c.targetProperty}
                 </div>
-              ))}
-              <button
-                onClick={() => setPendingUpdates([])}
-                style={{
-                  marginTop: 6,
-                  padding: "3px 8px",
-                  fontSize: 10,
-                  background: "transparent",
-                  color: "#6b7280",
-                  border: "1px solid #d1d5db",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                }}
-              >
-                Clear
-              </button>
-            </div>
-          )}
+                {c.type === "color_picker" && <ColorPicker control={c} val={v} apply={x => apply(c, x)} />}
+                {c.type === "font_picker" && <FontPicker control={c} val={v} apply={x => apply(c, x)} />}
+                {c.type === "spacing_slider" && <SpacingSlider val={v} apply={x => apply(c, x)} />}
+                {c.type === "border_radius_slider" && <BorderRadius val={v} apply={x => apply(c, x)} />}
+                {c.type === "tone_slider" && <ToneSlider control={c} />}
+                {c.type === "layout_toggle" && <LayoutToggle control={c} val={v} apply={x => apply(c, x)} />}
+                {c.type === "text_editor" && <TextEditor val={v} apply={x => apply(c, x)} />}
+              </div>
+            );
+          })}
+
+          <div style={{ marginTop: 10, padding: 8, background: "#f0fdf4", borderRadius: 6, border: "1px solid #bbf7d0", fontSize: 9, color: "#166534", lineHeight: 1.5 }}>
+            💡 Colors, fonts, text, spacing, and roundness update instantly. Tone changes need AI — click to copy, paste into chat.
+          </div>
         </div>
       </div>
     </McpUseProvider>

@@ -3,6 +3,7 @@ import { z } from "zod";
 export const propSchema = z.object({
   businessName: z.string(),
   tagline: z.string().optional(),
+  heroImageUrl: z.string().nullable().optional(),
   sections: z.array(
     z.object({
       id: z.string(),
@@ -12,17 +13,14 @@ export const propSchema = z.object({
       bodyText: z.string().optional(),
       buttonText: z.string().optional(),
       features: z
-        .array(
-          z.object({
-            icon: z.string().optional(),
-            title: z.string(),
-            description: z.string(),
-          })
-        )
+        .array(z.object({ icon: z.string().optional(), title: z.string(), description: z.string() }))
         .optional(),
       bgColor: z.string().optional(),
       textColor: z.string().optional(),
       accentColor: z.string().optional(),
+      fontFamily: z.string().optional(),
+      borderRadius: z.string().optional(),
+      paddingY: z.string().optional(),
       layout: z.string().optional(),
     })
   ),
