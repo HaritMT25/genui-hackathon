@@ -190,7 +190,7 @@ function BorderRadius({ val, apply }: { val: string; apply: (v: string) => void 
   );
 }
 
-function ToneSlider({ control, onApply }: { control: any; onApply: (sectionId: string, tone: string) => void }) {
+function ToneSlider({ control, onApply }: { control: any; onApply: (sectionId: string, tone: string) => Promise<void> }) {
   const [val, setVal] = useState(parseInt(control.currentValue) || 2);
   const [pending, setPending] = useState(false);
   return (
@@ -201,7 +201,7 @@ function ToneSlider({ control, onApply }: { control: any; onApply: (sectionId: s
         ))}
       </div>
       <input type="range" min={0} max={4} value={val} onChange={e => setVal(parseInt(e.target.value))} style={{ width: "100%" }} />
-      <button disabled={pending} onClick={() => { setPending(true); onApply(control.targetSectionId, TONE_LABELS[val]); setTimeout(() => setPending(false), 3000); }}
+      <button disabled={pending} onClick={async () => { setPending(true); await onApply(control.targetSectionId, TONE_LABELS[val]); setPending(false); }}
         style={{ marginTop: 4, padding: "5px 12px", fontSize: 10, backgroundColor: pending ? "#9ca3af" : "#2563eb", color: "#fff", border: "none", borderRadius: 4, cursor: pending ? "wait" : "pointer", fontWeight: 600, width: "100%" }}>
         {pending ? "⏳ AI is rewriting..." : `⚡ Rewrite as "${TONE_LABELS[val]}"`}
       </button>
@@ -306,50 +306,118 @@ const PageBuilder: React.FC = () => {
 
   const log = (msg: string) => setFeedbackLog(prev => [...prev.slice(-14), `${new Date().toLocaleTimeString().slice(0, 5)} ${msg}`]);
 
-  /* ─── Agentic actions (call tools / send messages) ────────────────────── */
+  /* ─── Agentic actions with cascading fallbacks ─────────────────────────── */
+
+  // Timeout wrapper — callTool often hangs in browser MCP hosts
+  const withTimeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+    Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("Timed out")), ms))]);
+
+  // Try to extract updated page data from a callTool response and apply it
+  const applyToolResponse = (result: any) => {
+    const pd = result?.structuredContent ?? result?.props ?? result;
+    if (pd?.sections && Array.isArray(pd.sections)) {
+      setSections(JSON.parse(JSON.stringify(pd.sections)));
+      if (pd.businessName) setBusinessName(pd.businessName);
+      if (pd.heroImageUrl !== undefined) setHeroImageUrl(pd.heroImageUrl);
+      if (pd.globalStyles) setGlobalStyles(pd.globalStyles);
+      if (pd._analysis) setAnalysis(pd._analysis);
+      setChangeCount(c => c + 1);
+      return true;
+    }
+    return false;
+  };
+
+  // Core: try callTool → sendFollowUpMessage → clipboard, whichever works first
+  const agentCall = async (toolName: string, args: Record<string, any>, chatFallback: string) => {
+    // 1) Try callTool with 8s timeout
+    if (callTool) {
+      try {
+        const result = await withTimeout(callTool(toolName, args), 8000);
+        if (applyToolResponse(result)) {
+          log(`✅ ${toolName} applied`);
+          return;
+        }
+        // Tool ran but no parseable response — props might update via MCP channel
+        log(`✅ ${toolName} called — waiting for update...`);
+        return;
+      } catch (e: any) {
+        log(`⚠️ callTool timed out or failed: ${e.message}`);
+      }
+    }
+
+    // 2) Try sendFollowUpMessage (goes through LLM → tool → props pipeline)
+    if (sendFollowUpMessage) {
+      try {
+        await withTimeout(sendFollowUpMessage(chatFallback), 5000);
+        log(`💬 Sent to agent: "${chatFallback.slice(0, 60)}..."`);
+        return;
+      } catch {
+        log(`⚠️ sendFollowUpMessage unavailable`);
+      }
+    }
+
+    // 3) Final fallback: copy to clipboard for manual paste
+    try { await navigator.clipboard.writeText(chatFallback); } catch {}
+    log(`📋 Copied to clipboard — paste in chat: "${chatFallback.slice(0, 50)}..."`);
+  };
 
   const handleToneApply = async (sectionId: string, tone: string) => {
-    log(`🤖 Calling AI: rewrite "${sectionId}" as ${tone}...`);
-    try {
-      await callTool("update-section", { sectionId, property: "tone", newValue: tone });
-      log(`✅ "${sectionId}" rewritten as ${tone}`);
-    } catch (e: any) { log(`❌ Tone failed: ${e.message}`); }
+    log(`🤖 Rewriting "${sectionId}" as ${tone}...`);
+    await agentCall(
+      "update-section",
+      { sectionId, property: "tone", newValue: tone },
+      `Please rewrite the "${sectionId}" section in a ${tone} tone.`
+    );
   };
 
   const handleRefine = async (sectionId: string, instruction: string) => {
     log(`🤖 Refining "${sectionId}": ${instruction}...`);
-    try {
-      await callTool("refine-section", { sectionId, instruction });
-      log(`✅ "${sectionId}" refined`);
-    } catch (e: any) { log(`❌ Refine failed: ${e.message}`); }
+    await agentCall(
+      "refine-section",
+      { sectionId, instruction },
+      `Please refine the "${sectionId}" section: ${instruction}`
+    );
   };
 
   const handleAnalyze = async () => {
     setAnalyzePending(true);
-    log("🔍 Calling AI to analyze page...");
-    try {
-      await callTool("analyze-page", {});
-      log("✅ Analysis complete");
-    } catch (e: any) { log(`❌ Analysis failed: ${e.message}`); }
+    log("🔍 Analyzing page...");
+    await agentCall("analyze-page", {}, "Please analyze the current page and suggest improvements.");
     setAnalyzePending(false);
   };
 
   const handleAutoFix = async (fix: any) => {
-    log(`⚡ Auto-fixing: ${fix.tool}...`);
-    try {
-      await callTool(fix.tool, fix.args);
-      log(`✅ Fix applied`);
-    } catch (e: any) { log(`❌ Fix failed: ${e.message}`); }
+    log(`⚡ Auto-fixing via ${fix.tool}...`);
+    const fallback = fix.tool === "refine-section"
+      ? `Please refine section "${fix.args.sectionId}": ${fix.args.instruction}`
+      : fix.tool === "global-update"
+        ? `Please set ${fix.args.property} to "${fix.args.newValue}" globally.`
+        : `Please update section "${fix.args.sectionId}" — set ${fix.args.property} to "${fix.args.newValue}".`;
+    await agentCall(fix.tool, fix.args, fallback);
   };
 
   const handlePrompt = async () => {
     if (!promptText.trim()) return;
+    const msg = promptText.trim();
     setPromptPending(true);
-    log(`💬 Sending: "${promptText}"`);
-    try {
-      await sendFollowUpMessage(promptText);
-      log("✅ Message sent to agent");
-    } catch (e: any) { log(`❌ Send failed: ${e.message}`); }
+    log(`💬 Sending: "${msg}"`);
+
+    // Prompt bar always goes through sendFollowUpMessage first (needs LLM interpretation)
+    if (sendFollowUpMessage) {
+      try {
+        await withTimeout(sendFollowUpMessage(msg), 5000);
+        log("✅ Sent to agent");
+        setPromptText("");
+        setPromptPending(false);
+        return;
+      } catch {
+        log("⚠️ sendFollowUpMessage unavailable");
+      }
+    }
+
+    // Fallback: clipboard
+    try { await navigator.clipboard.writeText(msg); } catch {}
+    log(`📋 Copied to clipboard — paste in chat`);
     setPromptText("");
     setPromptPending(false);
   };
@@ -394,9 +462,10 @@ const PageBuilder: React.FC = () => {
                 style={{ flex: 1, padding: "7px 10px", borderRadius: 6, border: "none", fontSize: 12, outline: "none", background: "#f8fafc" }} />
               <button onClick={handlePrompt} disabled={promptPending}
                 style={{ padding: "7px 12px", background: promptPending ? "#64748b" : "#3b82f6", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: promptPending ? "wait" : "pointer", whiteSpace: "nowrap" }}>
-                {promptPending ? "..." : "Send"}
+                {promptPending ? "..." : "⚡ Send"}
               </button>
             </div>
+            <div style={{ fontSize: 8, color: "#64748b", marginTop: 4 }}>Or click ✨ Refine on any section for targeted edits</div>
           </div>
 
           {/* Analyze button */}
