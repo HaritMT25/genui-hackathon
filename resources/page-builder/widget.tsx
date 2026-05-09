@@ -4,8 +4,7 @@ import "../styles.css";
 import { propSchema, type PageBuilderProps } from "./types";
 
 export const widgetMetadata: WidgetMetadata = {
-  description:
-    "Combined landing page preview with AI-generated contextual editing controls",
+  description: "Landing page preview with AI-generated controls and hero image",
   props: propSchema,
   exposeAsTool: false,
   metadata: {
@@ -33,11 +32,14 @@ const PALETTES = [
     colors: ["#FF006E", "#FB5607", "#FFBE0B", "#8338EC", "#3A86FF"],
   },
   {
-    name: "Mono",
-    colors: ["#1a1a1a", "#333333", "#666666", "#999999", "#ffffff"],
+    name: "Dark",
+    colors: ["#0f172a", "#1e293b", "#334155", "#475569", "#1a1a2e"],
+  },
+  {
+    name: "Light",
+    colors: ["#ffffff", "#f8fafc", "#f1f5f9", "#fefce8", "#fdf2f8"],
   },
 ];
-
 const TONE_LABELS = [
   "Corporate",
   "Professional",
@@ -45,92 +47,140 @@ const TONE_LABELS = [
   "Casual",
   "Playful",
 ];
-
-const DENSITY_SCALE: Record<string, number> = {
-  compact: 0.7,
-  cozy: 1,
-  spacious: 1.4,
-};
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   HELPERS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-function getButtonStyle(
-  accent: string,
-  variant: string = "solid",
-  radius: number = 8,
-): React.CSSProperties {
-  const base: React.CSSProperties = {
-    borderRadius: radius,
-    fontWeight: 600,
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-  };
-  if (variant === "outline") {
-    return {
-      ...base,
-      background: "transparent",
-      color: accent,
-      border: `2px solid ${accent}`,
-    };
-  }
-  if (variant === "ghost") {
-    return {
-      ...base,
-      background: accent + "1a",
-      color: accent,
-      border: "none",
-    };
-  }
-  return { ...base, background: accent, color: "#fff", border: "none" };
-}
-
-function getInnerAlignStyle(align: string = "center"): React.CSSProperties {
-  return {
-    textAlign: align as any,
-    marginLeft: align === "center" ? "auto" : 0,
-    marginRight: align === "center" ? "auto" : 0,
-  };
-}
+const FONT_OPTIONS = [
+  { label: "System Default", value: "system-ui, -apple-system, sans-serif" },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Helvetica", value: "Helvetica Neue, Helvetica, sans-serif" },
+  { label: "Times", value: "Times New Roman, serif" },
+  { label: "Courier", value: "Courier New, monospace" },
+  { label: "Trebuchet", value: "Trebuchet MS, sans-serif" },
+  { label: "Verdana", value: "Verdana, sans-serif" },
+  { label: "Palatino", value: "Palatino Linotype, serif" },
+];
+const IMAGE_PROMPT_PRESETS = [
+  "Soft pastel sunrise over rolling hills, minimal editorial style",
+  "Abstract gradient mesh, blue to violet, modern SaaS aesthetic",
+  "Hand-drawn illustration, friendly mascot, warm tones",
+  "Photorealistic minimal product on neutral backdrop, studio light",
+  "Cinematic mountain landscape at golden hour, wide angle",
+];
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   SECTION RENDERER
+   SECTION RENDERER — font & borderRadius applied to ALL child elements
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function SectionRenderer({ section }: { section: any }) {
-  const densityScale = DENSITY_SCALE[section.density || "cozy"] || 1;
+function SectionRenderer({
+  section,
+  heroImageUrl,
+  highlighted,
+  imageLoading,
+}: {
+  section: any;
+  heroImageUrl?: string | null;
+  highlighted: boolean;
+  imageLoading?: boolean;
+}) {
+  const py = parseInt(section.paddingY) || 48;
+  const br = section.borderRadius || "8px";
+  const font = section.fontFamily || "system-ui, -apple-system, sans-serif";
+  const bg = section.bgColor || "#ffffff";
+  const fg = section.textColor || "#1a1a1a";
   const accent = section.accentColor || "#3b82f6";
-  const radius = typeof section.borderRadius === "number"
-    ? section.borderRadius
-    : parseInt(section.borderRadius) || 8;
-  const align = section.textAlign || "center";
 
-  const style: React.CSSProperties = {
-    backgroundColor: section.bgColor || "#ffffff",
-    color: section.textColor || "#1a1a1a",
-    padding: `${Math.round(48 * densityScale)}px ${Math.round(32 * densityScale)}px`,
-    fontFamily: section.fontFamily || "system-ui, -apple-system, sans-serif",
+  const wrap: React.CSSProperties = {
+    backgroundColor: bg,
+    color: fg,
+    padding: `${py}px 32px`,
+    fontFamily: font,
+    transition: "all 0.35s ease",
+    position: "relative",
+    outline: highlighted ? "3px solid #3b82f6" : "3px solid transparent",
+    outlineOffset: "-3px",
+  };
+  const badge = highlighted ? (
+    <div
+      style={{
+        position: "absolute",
+        top: 8,
+        left: 8,
+        fontSize: 9,
+        background: "#3b82f6",
+        color: "#fff",
+        padding: "2px 8px",
+        borderRadius: 4,
+        fontFamily: "system-ui",
+        fontWeight: 600,
+        zIndex: 5,
+      }}
+    >
+      ← editing
+    </div>
+  ) : null;
+  const btnStyle: React.CSSProperties = {
+    padding: "14px 36px",
+    borderRadius: br,
+    border: "none",
+    backgroundColor: accent,
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: "pointer",
+    fontFamily: font,
     transition: "all 0.3s ease",
+    letterSpacing: "0.02em",
   };
 
   switch (section.type) {
     case "hero":
       return (
-        <section style={style}>
-          <div
-            style={{
-              maxWidth: 800,
-              ...getInnerAlignStyle(align),
-            }}
-          >
+        <section style={wrap} id={`section-${section.id}`}>
+          {badge}
+          <div style={{ maxWidth: 800, margin: "0 auto", textAlign: "center" }}>
+            {imageLoading ? (
+              <div
+                style={{
+                  width: "100%",
+                  height: 340,
+                  borderRadius: br,
+                  marginBottom: 28,
+                  background:
+                    "linear-gradient(110deg, #ececec 8%, #f5f5f5 18%, #ececec 33%)",
+                  backgroundSize: "200% 100%",
+                  animation: "pb-shimmer 1.4s linear infinite",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#9ca3af",
+                  fontSize: 13,
+                }}
+              >
+                <style>{`@keyframes pb-shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }`}</style>
+                🎨 Generating your hero image...
+              </div>
+            ) : (
+              heroImageUrl && (
+                <img
+                  src={heroImageUrl}
+                  alt="Hero"
+                  style={{
+                    width: "100%",
+                    maxHeight: 340,
+                    objectFit: "cover",
+                    borderRadius: br,
+                    marginBottom: 28,
+                    boxShadow: "0 8px 32px rgba(0,0,0,0.2)",
+                  }}
+                />
+              )
+            )}
             <h1
               style={{
-                fontSize: 42,
+                fontSize: 48,
                 fontWeight: 800,
-                marginBottom: 12,
-                lineHeight: 1.1,
-                letterSpacing: "-0.02em",
+                marginBottom: 14,
+                lineHeight: 1.08,
+                letterSpacing: "-0.03em",
+                fontFamily: font,
               }}
             >
               {section.heading}
@@ -138,28 +188,20 @@ function SectionRenderer({ section }: { section: any }) {
             {section.subheading && (
               <p
                 style={{
-                  fontSize: 18,
-                  opacity: 0.8,
-                  marginBottom: 28,
-                  lineHeight: 1.5,
-                  maxWidth: 600,
-                  marginLeft: align === "center" ? "auto" : 0,
-                  marginRight: align === "center" ? "auto" : 0,
+                  fontSize: 19,
+                  opacity: 0.75,
+                  marginBottom: 32,
+                  lineHeight: 1.6,
+                  maxWidth: 560,
+                  margin: "0 auto 32px",
+                  fontFamily: font,
                 }}
               >
                 {section.subheading}
               </p>
             )}
             {section.buttonText && (
-              <button
-                style={{
-                  padding: "12px 32px",
-                  fontSize: 16,
-                  ...getButtonStyle(accent, section.buttonStyle, radius),
-                }}
-              >
-                {section.buttonText}
-              </button>
+              <button style={btnStyle}>{section.buttonText}</button>
             )}
           </div>
         </section>
@@ -167,14 +209,16 @@ function SectionRenderer({ section }: { section: any }) {
 
     case "features":
       return (
-        <section style={style}>
+        <section style={wrap} id={`section-${section.id}`}>
+          {badge}
           <div style={{ maxWidth: 960, margin: "0 auto" }}>
             <h2
               style={{
-                fontSize: 28,
+                fontSize: 30,
                 fontWeight: 700,
-                textAlign: align as any,
-                marginBottom: 40,
+                textAlign: "center",
+                marginBottom: 48,
+                fontFamily: font,
               }}
             >
               {section.heading}
@@ -186,34 +230,39 @@ function SectionRenderer({ section }: { section: any }) {
                 gap: 32,
               }}
             >
-              {(section.features || []).map((feat: any, i: number) => (
+              {(section.features || []).map((f: any, i: number) => (
                 <div
                   key={i}
-                  style={{ textAlign: align as any, padding: 16 }}
+                  style={{
+                    textAlign: "center",
+                    padding: 20,
+                    borderRadius: br,
+                    background: "rgba(128,128,128,0.06)",
+                    transition: "all 0.3s ease",
+                  }}
                 >
-                  <div
-                    style={{
-                      fontSize: 28,
-                      marginBottom: 12,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      width: 56,
-                      height: 56,
-                      borderRadius: "50%",
-                      background: accent + "1a",
-                      color: accent,
-                    }}
-                  >
-                    {feat.icon || "✨"}
+                  <div style={{ fontSize: 40, marginBottom: 14 }}>
+                    {f.icon || "✨"}
                   </div>
                   <h3
-                    style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 700,
+                      marginBottom: 8,
+                      fontFamily: font,
+                    }}
                   >
-                    {feat.title}
+                    {f.title}
                   </h3>
-                  <p style={{ fontSize: 14, opacity: 0.7, lineHeight: 1.5 }}>
-                    {feat.description}
+                  <p
+                    style={{
+                      fontSize: 14,
+                      opacity: 0.65,
+                      lineHeight: 1.6,
+                      fontFamily: font,
+                    }}
+                  >
+                    {f.description}
                   </p>
                 </div>
               ))}
@@ -224,40 +273,39 @@ function SectionRenderer({ section }: { section: any }) {
 
     case "testimonial":
       return (
-        <section style={style}>
-          <div
-            style={{
-              maxWidth: 700,
-              ...getInnerAlignStyle(align),
-            }}
-          >
+        <section style={wrap} id={`section-${section.id}`}>
+          {badge}
+          <div style={{ maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
             <div
               style={{
-                fontSize: 48,
-                marginBottom: 16,
-                color: accent,
-                opacity: 0.5,
+                fontSize: 56,
+                marginBottom: 12,
+                opacity: 0.2,
+                lineHeight: 1,
               }}
             >
               &ldquo;
             </div>
             <blockquote
               style={{
-                fontSize: 22,
+                fontSize: 24,
                 fontStyle: "italic",
-                lineHeight: 1.6,
-                marginBottom: 16,
+                lineHeight: 1.7,
+                marginBottom: 20,
+                fontFamily: font,
               }}
             >
               {section.heading}
             </blockquote>
             {section.subheading && (
-              <p style={{ fontWeight: 600, fontSize: 14 }}>
+              <p style={{ fontWeight: 700, fontSize: 15, fontFamily: font }}>
                 {section.subheading}
               </p>
             )}
             {section.bodyText && (
-              <p style={{ fontSize: 13, opacity: 0.6 }}>{section.bodyText}</p>
+              <p style={{ fontSize: 13, opacity: 0.5, fontFamily: font }}>
+                {section.bodyText}
+              </p>
             )}
           </div>
         </section>
@@ -265,23 +313,27 @@ function SectionRenderer({ section }: { section: any }) {
 
     case "cta":
       return (
-        <section style={style}>
-          <div
-            style={{
-              maxWidth: 600,
-              ...getInnerAlignStyle(align),
-            }}
-          >
-            <h2 style={{ fontSize: 30, fontWeight: 700, marginBottom: 12 }}>
+        <section style={wrap} id={`section-${section.id}`}>
+          {badge}
+          <div style={{ maxWidth: 600, margin: "0 auto", textAlign: "center" }}>
+            <h2
+              style={{
+                fontSize: 32,
+                fontWeight: 800,
+                marginBottom: 14,
+                fontFamily: font,
+              }}
+            >
               {section.heading}
             </h2>
             {section.subheading && (
               <p
                 style={{
-                  fontSize: 16,
-                  opacity: 0.8,
-                  marginBottom: 24,
-                  lineHeight: 1.5,
+                  fontSize: 17,
+                  opacity: 0.75,
+                  marginBottom: 28,
+                  lineHeight: 1.6,
+                  fontFamily: font,
                 }}
               >
                 {section.subheading}
@@ -289,12 +341,7 @@ function SectionRenderer({ section }: { section: any }) {
             )}
             {section.buttonText && (
               <button
-                style={{
-                  padding: "14px 40px",
-                  fontSize: 18,
-                  fontWeight: 700,
-                  ...getButtonStyle(accent, section.buttonStyle, radius),
-                }}
+                style={{ ...btnStyle, padding: "16px 44px", fontSize: 18 }}
               >
                 {section.buttonText}
               </button>
@@ -306,24 +353,23 @@ function SectionRenderer({ section }: { section: any }) {
     case "footer":
       return (
         <footer
+          id={`section-${section.id}`}
           style={{
-            ...style,
-            padding: `${Math.round(24 * densityScale)}px 32px`,
+            ...wrap,
+            padding: "20px 32px",
             textAlign: "center",
             fontSize: 13,
-            opacity: 0.7,
-            borderTop: section.accentColor
-              ? `3px solid ${accent}`
-              : "1px solid rgba(0,0,0,0.08)",
+            opacity: 0.5,
           }}
         >
+          {badge}
           {section.heading}
         </footer>
       );
 
     default:
       return (
-        <section style={style}>
+        <section style={wrap}>
           <p>{section.heading}</p>
         </section>
       );
@@ -331,20 +377,19 @@ function SectionRenderer({ section }: { section: any }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CONTROL WIDGETS
+   CONTROLS
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function ColorPickerControl({
+function ColorPicker({
   control,
-  currentValue,
-  onApply,
+  val,
+  apply,
 }: {
   control: any;
-  currentValue: string;
-  onApply: (v: string) => void;
+  val: string;
+  apply: (v: string) => void;
 }) {
   const suggested = control.options?.length ? control.options : null;
-
   return (
     <div>
       {suggested && (
@@ -353,19 +398,16 @@ function ColorPickerControl({
             Suggested
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {suggested.map((color: string) => (
+            {suggested.map((c: string) => (
               <button
-                key={color}
-                onClick={() => onApply(color)}
+                key={c}
+                onClick={() => apply(c)}
                 style={{
                   width: 30,
                   height: 30,
                   borderRadius: "50%",
-                  border:
-                    currentValue === color
-                      ? "3px solid #000"
-                      : "2px solid #e5e7eb",
-                  backgroundColor: color,
+                  border: val === c ? "3px solid #000" : "2px solid #e5e7eb",
+                  backgroundColor: c,
                   cursor: "pointer",
                   transition: "transform 0.15s",
                 }}
@@ -390,22 +432,19 @@ function ColorPickerControl({
             marginBottom: 4,
           }}
         >
-          <span style={{ fontSize: 10, color: "#9ca3af", width: 36 }}>
+          <span style={{ fontSize: 9, color: "#9ca3af", width: 32 }}>
             {p.name}
           </span>
-          {p.colors.map((color) => (
+          {p.colors.map((c) => (
             <button
-              key={color}
-              onClick={() => onApply(color)}
+              key={c}
+              onClick={() => apply(c)}
               style={{
-                width: 22,
-                height: 22,
+                width: 20,
+                height: 20,
                 borderRadius: "50%",
-                border:
-                  currentValue === color
-                    ? "2px solid #000"
-                    : "1px solid #e5e7eb",
-                backgroundColor: color,
+                border: val === c ? "2px solid #000" : "1px solid #e5e7eb",
+                backgroundColor: c,
                 cursor: "pointer",
                 transition: "transform 0.15s",
               }}
@@ -421,33 +460,210 @@ function ColorPickerControl({
       ))}
       <input
         type="color"
-        value={currentValue || "#000000"}
-        onChange={(e) => onApply(e.target.value)}
+        value={val || "#000000"}
+        onChange={(e) => apply(e.target.value)}
         style={{
           width: "100%",
-          height: 28,
+          height: 26,
           cursor: "pointer",
           marginTop: 4,
           border: "none",
+          borderRadius: 4,
         }}
       />
     </div>
   );
 }
 
-function ToneSliderControl({
+function FontPicker({
   control,
-  onApply,
+  val,
+  apply,
 }: {
   control: any;
-  onApply: (v: string) => void;
+  val: string;
+  apply: (v: string) => void;
 }) {
-  const [value, setValue] = useState(2);
-  const [copied, setCopied] = useState(false);
-  const targetLabel =
-    control.targetSectionId === "*" ? "all sections" : control.targetSectionId;
-  const cmd = `Update ${targetLabel} tone to "${TONE_LABELS[value]}"`;
+  const opts = control.options?.length
+    ? control.options.map((o: string) => ({
+        label: o.split(",")[0].trim(),
+        value: o,
+      }))
+    : FONT_OPTIONS;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {(opts as any[]).map((f: any) => {
+        const fv = typeof f === "string" ? f : f.value;
+        const fl = typeof f === "string" ? f.split(",")[0].trim() : f.label;
+        const active = val === fv;
+        return (
+          <button
+            key={fv}
+            onClick={() => apply(fv)}
+            style={{
+              padding: "8px 10px",
+              borderRadius: 6,
+              textAlign: "left",
+              border: active ? "2px solid #2563eb" : "1px solid #e5e7eb",
+              background: active ? "#eff6ff" : "#fff",
+              cursor: "pointer",
+              fontFamily: fv,
+              fontSize: 13,
+              fontWeight: active ? 700 : 400,
+              color: active ? "#1d4ed8" : "#374151",
+              transition: "all 0.2s",
+            }}
+          >
+            {fl}
+            <span
+              style={{
+                fontSize: 10,
+                opacity: 0.5,
+                display: "block",
+                fontFamily: fv,
+              }}
+            >
+              The quick brown fox
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
+function SpacingSlider({
+  val,
+  apply,
+}: {
+  val: string;
+  apply: (v: string) => void;
+}) {
+  const n = parseInt(val) || 48;
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 4,
+        }}
+      >
+        <span style={{ fontSize: 11, color: "#6b7280" }}>Spacing</span>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#2563eb",
+            fontFamily: "monospace",
+          }}
+        >
+          {n}px
+        </span>
+      </div>
+      <input
+        type="range"
+        min={16}
+        max={120}
+        step={4}
+        value={n}
+        onChange={(e) => apply(e.target.value + "px")}
+        style={{ width: "100%", accentColor: "#3b82f6" }}
+      />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 9,
+          color: "#9ca3af",
+        }}
+      >
+        <span>Compact</span>
+        <span>Spacious</span>
+      </div>
+    </div>
+  );
+}
+
+function BorderRadius({
+  val,
+  apply,
+}: {
+  val: string;
+  apply: (v: string) => void;
+}) {
+  const n = parseInt(val) || 8;
+  const presets = [0, 4, 8, 16, 24, 999];
+  const labels = ["Sharp", "Subtle", "Round", "Soft", "Pill", "Full"];
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 6,
+        }}
+      >
+        <span style={{ fontSize: 11, color: "#6b7280" }}>Roundness</span>
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            color: "#2563eb",
+            fontFamily: "monospace",
+          }}
+        >
+          {n}px
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+        {presets.map((v, i) => (
+          <button
+            key={v}
+            onClick={() => apply(v + "px")}
+            style={{
+              flex: 1,
+              padding: "6px 2px",
+              fontSize: 9,
+              borderRadius: 4,
+              textAlign: "center",
+              border: n === v ? "2px solid #2563eb" : "1px solid #e5e7eb",
+              background: n === v ? "#eff6ff" : "#fff",
+              color: n === v ? "#1d4ed8" : "#6b7280",
+              cursor: "pointer",
+              fontWeight: n === v ? 700 : 400,
+            }}
+          >
+            <div
+              style={{
+                width: 18,
+                height: 12,
+                margin: "0 auto 2px",
+                border: "2px solid currentColor",
+                borderRadius: Math.min(v, 7),
+              }}
+            />
+            {labels[i]}
+          </button>
+        ))}
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={32}
+        step={1}
+        value={Math.min(n, 32)}
+        onChange={(e) => apply(e.target.value + "px")}
+        style={{ width: "100%", accentColor: "#3b82f6" }}
+      />
+    </div>
+  );
+}
+
+function ToneSlider({ control }: { control: any }) {
+  const [v, setV] = useState(2);
+  const [copied, setCopied] = useState(false);
+  const cmd = `Update section "${control.targetSectionId}" tone to "${TONE_LABELS[v]}"`;
   return (
     <div>
       <input
@@ -455,8 +671,8 @@ function ToneSliderControl({
         min={0}
         max={4}
         step={1}
-        value={value}
-        onChange={(e) => setValue(parseInt(e.target.value))}
+        value={v}
+        onChange={(e) => setV(parseInt(e.target.value))}
         style={{ width: "100%", accentColor: "#3b82f6" }}
       />
       <div
@@ -466,20 +682,25 @@ function ToneSliderControl({
           marginTop: 4,
         }}
       >
-        {TONE_LABELS.map((label, i) => (
+        {TONE_LABELS.map((l, i) => (
           <span
-            key={label}
+            key={l}
             style={{
               fontSize: 9,
-              color: i === value ? "#2563eb" : "#9ca3af",
-              fontWeight: i === value ? 700 : 400,
+              color: i === v ? "#2563eb" : "#9ca3af",
+              fontWeight: i === v ? 700 : 400,
             }}
           >
-            {label}
+            {l}
           </span>
         ))}
       </div>
       <div
+        onClick={() => {
+          navigator.clipboard?.writeText(cmd);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        }}
         style={{
           marginTop: 8,
           padding: "6px 8px",
@@ -487,42 +708,36 @@ function ToneSliderControl({
           borderRadius: 4,
           fontSize: 10,
           color: "#92400e",
+          cursor: "pointer",
         }}
       >
-        ⚡ Tone needs AI rewrite. Click to copy:
+        ⚡ {copied ? "✓ Copied!" : "Click to copy AI rewrite command"}
         <div
-          onClick={() => {
-            navigator.clipboard?.writeText(cmd);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 2000);
-          }}
           style={{
             fontFamily: "monospace",
-            marginTop: 4,
-            padding: "4px 6px",
-            background: "#fde68a",
-            borderRadius: 3,
-            cursor: "pointer",
+            marginTop: 3,
+            fontSize: 9,
+            opacity: 0.8,
             wordBreak: "break-all",
           }}
         >
-          {copied ? "✓ Copied!" : cmd}
+          {cmd}
         </div>
       </div>
     </div>
   );
 }
 
-function LayoutToggleControl({
+function LayoutToggle({
   control,
-  currentValue,
-  onApply,
+  val,
+  apply,
 }: {
   control: any;
-  currentValue: string;
-  onApply: (v: string) => void;
+  val: string;
+  apply: (v: string) => void;
 }) {
-  const options = control.options?.length
+  const opts = control.options?.length
     ? control.options
     : ["centered", "split-left", "split-right", "full-bleed"];
   const icons: Record<string, string> = {
@@ -531,54 +746,47 @@ function LayoutToggleControl({
     "split-right": "◨",
     "full-bleed": "▬",
   };
-
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-      {options.map((opt: string) => (
+      {opts.map((o: string) => (
         <button
-          key={opt}
-          onClick={() => onApply(opt)}
+          key={o}
+          onClick={() => apply(o)}
           style={{
             padding: "8px 4px",
             borderRadius: 6,
-            border:
-              currentValue === opt ? "2px solid #2563eb" : "1px solid #e5e7eb",
-            background: currentValue === opt ? "#eff6ff" : "#ffffff",
-            color: currentValue === opt ? "#1d4ed8" : "#374151",
+            border: val === o ? "2px solid #2563eb" : "1px solid #e5e7eb",
+            background: val === o ? "#eff6ff" : "#fff",
+            color: val === o ? "#1d4ed8" : "#374151",
             cursor: "pointer",
             fontSize: 11,
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: 20 }}>{icons[opt] || "▢"}</div>
-          <div style={{ marginTop: 2 }}>{opt}</div>
+          <div style={{ fontSize: 20 }}>{icons[o] || "▢"}</div>
+          <div style={{ marginTop: 2 }}>{o}</div>
         </button>
       ))}
     </div>
   );
 }
 
-function TextEditorControl({
-  control,
-  currentValue,
-  onApply,
+function TextEditor({
+  val,
+  apply,
 }: {
-  control: any;
-  currentValue: string;
-  onApply: (v: string) => void;
+  val: string;
+  apply: (v: string) => void;
 }) {
-  const [value, setValue] = useState(currentValue || "");
-
-  // Keep local state in sync if currentValue changes externally
+  const [v, setV] = useState(val || "");
   useEffect(() => {
-    setValue(currentValue || "");
-  }, [currentValue]);
-
+    setV(val || "");
+  }, [val]);
   return (
     <div>
       <textarea
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
         rows={2}
         style={{
           width: "100%",
@@ -592,7 +800,7 @@ function TextEditorControl({
         }}
       />
       <button
-        onClick={() => onApply(value)}
+        onClick={() => apply(v)}
         style={{
           marginTop: 4,
           padding: "5px 14px",
@@ -611,265 +819,135 @@ function TextEditorControl({
   );
 }
 
-/* ─── NEW CONTROLS ─────────────────────────────────────────────────────── */
+/* ─── NEW: image prompt control (Gemini hero image generator) ─────────────── */
 
-function RadiusSliderControl({
-  currentValue,
-  onApply,
-}: {
-  currentValue: string;
-  onApply: (v: string) => void;
-}) {
-  const value =
-    typeof currentValue === "number"
-      ? currentValue
-      : parseInt(currentValue) || 8;
-  return (
-    <div>
-      <input
-        type="range"
-        min={0}
-        max={32}
-        step={2}
-        value={value}
-        onChange={(e) => onApply(e.target.value)}
-        style={{ width: "100%", accentColor: "#3b82f6" }}
-      />
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 10,
-          color: "#9ca3af",
-          marginTop: 4,
-        }}
-      >
-        <span>Sharp</span>
-        <span style={{ color: "#2563eb", fontWeight: 700 }}>{value}px</span>
-        <span>Pill</span>
-      </div>
-      {/* Live preview */}
-      <div
-        style={{
-          marginTop: 8,
-          height: 32,
-          background: "#3b82f6",
-          borderRadius: value,
-          transition: "border-radius 0.2s",
-        }}
-      />
-    </div>
-  );
-}
-
-function DensityControl({
-  currentValue,
-  onApply,
-}: {
-  currentValue: string;
-  onApply: (v: string) => void;
-}) {
-  const opts = [
-    { id: "compact", label: "Compact" },
-    { id: "cozy", label: "Cozy" },
-    { id: "spacious", label: "Spacious" },
-  ];
-  const selected = currentValue || "cozy";
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-      {opts.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onApply(o.id)}
-          style={{
-            padding: "8px 4px",
-            borderRadius: 6,
-            border:
-              selected === o.id ? "2px solid #2563eb" : "1px solid #e5e7eb",
-            background: selected === o.id ? "#eff6ff" : "#fff",
-            color: selected === o.id ? "#1d4ed8" : "#374151",
-            cursor: "pointer",
-            fontSize: 11,
-            fontWeight: selected === o.id ? 700 : 400,
-          }}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ButtonStyleControl({
-  currentValue,
-  onApply,
-}: {
-  currentValue: string;
-  onApply: (v: string) => void;
-}) {
-  const opts = ["solid", "outline", "ghost"];
-  const selected = currentValue || "solid";
-  return (
-    <div style={{ display: "flex", gap: 6 }}>
-      {opts.map((o) => (
-        <button
-          key={o}
-          onClick={() => onApply(o)}
-          style={{
-            flex: 1,
-            padding: 8,
-            borderRadius: 6,
-            border:
-              selected === o ? "2px solid #2563eb" : "1px solid #e5e7eb",
-            background: selected === o ? "#eff6ff" : "#fff",
-            color: selected === o ? "#1d4ed8" : "#374151",
-            cursor: "pointer",
-            fontSize: 11,
-            textTransform: "capitalize",
-            fontWeight: selected === o ? 700 : 400,
-          }}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function AlignmentControl({
-  currentValue,
-  onApply,
-}: {
-  currentValue: string;
-  onApply: (v: string) => void;
-}) {
-  const opts: Array<{ id: string; icon: string; label: string }> = [
-    { id: "left", icon: "⇤", label: "Left" },
-    { id: "center", icon: "↔", label: "Center" },
-    { id: "right", icon: "⇥", label: "Right" },
-  ];
-  const selected = currentValue || "center";
-  return (
-    <div style={{ display: "flex", gap: 6 }}>
-      {opts.map((o) => (
-        <button
-          key={o.id}
-          onClick={() => onApply(o.id)}
-          title={o.label}
-          style={{
-            flex: 1,
-            padding: "10px 0",
-            border:
-              selected === o.id ? "2px solid #2563eb" : "1px solid #e5e7eb",
-            background: selected === o.id ? "#eff6ff" : "#fff",
-            color: selected === o.id ? "#1d4ed8" : "#374151",
-            borderRadius: 6,
-            cursor: "pointer",
-            fontSize: 18,
-          }}
-        >
-          {o.icon}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function FontFamilyControl({
+function ImagePrompt({
   control,
-  currentValue,
-  onApply,
+  val,
+  apply,
+  onRequest,
+  hasCurrentImage,
 }: {
   control: any;
-  currentValue: string;
-  onApply: (v: string) => void;
+  val: string;
+  apply: (v: string) => void;
+  onRequest: (prompt: string) => void;
+  hasCurrentImage: boolean;
 }) {
-  const fonts = control.options?.length
-    ? control.options
-    : [
-        { id: "system-ui, -apple-system, sans-serif", label: "System" },
-        { id: "Georgia, serif", label: "Serif" },
-        { id: "'Courier New', monospace", label: "Mono" },
-        {
-          id: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-          label: "Helvetica",
-        },
-      ];
+  const [v, setV] = useState(val || "");
+  const [sent, setSent] = useState(false);
+  useEffect(() => {
+    setV(val || "");
+  }, [val]);
+
+  const cmd = `Regenerate the hero image with this prompt: "${v.trim()}"`;
+  const ready = v.trim().length > 3;
+
+  const handleSend = () => {
+    if (!ready) return;
+    apply(v.trim());
+    onRequest(v.trim());
+    navigator.clipboard?.writeText(cmd);
+    setSent(true);
+    setTimeout(() => setSent(false), 2500);
+  };
+
   return (
-    <div style={{ display: "grid", gap: 4 }}>
-      {fonts.map((f: any) => {
-        const id = typeof f === "string" ? f : f.id;
-        const label = typeof f === "string" ? f : f.label;
-        const selected = currentValue === id;
-        return (
+    <div>
+      <textarea
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        rows={3}
+        placeholder="Describe the hero image..."
+        style={{
+          width: "100%",
+          border: "1px solid #e5e7eb",
+          borderRadius: 6,
+          padding: 8,
+          fontSize: 12,
+          resize: "vertical",
+          fontFamily: "inherit",
+          boxSizing: "border-box",
+        }}
+      />
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+        {IMAGE_PROMPT_PRESETS.slice(0, 3).map((p) => (
           <button
-            key={id}
-            onClick={() => onApply(id)}
+            key={p}
+            onClick={() => setV(p)}
+            title={p}
             style={{
-              padding: "8px 10px",
-              borderRadius: 6,
-              border: selected ? "2px solid #2563eb" : "1px solid #e5e7eb",
-              background: selected ? "#eff6ff" : "#fff",
-              color: selected ? "#1d4ed8" : "#374151",
+              fontSize: 9,
+              padding: "3px 7px",
+              borderRadius: 10,
+              border: "1px solid #e5e7eb",
+              background: "#f9fafb",
+              color: "#6b7280",
               cursor: "pointer",
-              fontSize: 13,
-              fontFamily: id,
-              textAlign: "left",
-              fontWeight: selected ? 700 : 400,
+              whiteSpace: "nowrap",
+              maxWidth: 110,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
-            {label} <span style={{ opacity: 0.5, fontSize: 10 }}>— Aa</span>
+            {p.split(",")[0]}
           </button>
-        );
-      })}
-    </div>
-  );
-}
+        ))}
+      </div>
 
-function VisibilityControl({
-  currentValue,
-  onApply,
-}: {
-  currentValue: string | boolean;
-  onApply: (v: string) => void;
-}) {
-  // Treat anything truthy except the string "false" as visible
-  const isVisible =
-    currentValue === false || currentValue === "false" ? false : true;
-  return (
-    <div style={{ display: "flex", gap: 6 }}>
       <button
-        onClick={() => onApply("true")}
+        onClick={handleSend}
+        disabled={!ready}
         style={{
-          flex: 1,
-          padding: 8,
-          borderRadius: 6,
-          border: isVisible ? "2px solid #2563eb" : "1px solid #e5e7eb",
-          background: isVisible ? "#eff6ff" : "#fff",
-          color: isVisible ? "#1d4ed8" : "#374151",
-          cursor: "pointer",
-          fontSize: 11,
-          fontWeight: isVisible ? 700 : 400,
+          marginTop: 8,
+          padding: "8px 14px",
+          fontSize: 12,
+          backgroundColor: ready ? "#7c3aed" : "#cbd5e1",
+          color: "#fff",
+          border: "none",
+          borderRadius: 4,
+          cursor: ready ? "pointer" : "not-allowed",
+          fontWeight: 600,
+          width: "100%",
+          transition: "background-color 0.2s",
         }}
       >
-        👁 Show
+        {sent
+          ? "✓ Sent — paste in chat to generate"
+          : hasCurrentImage
+            ? "🎨 Regenerate Image"
+            : "🎨 Generate Image"}
       </button>
-      <button
-        onClick={() => onApply("false")}
+
+      <div
         style={{
-          flex: 1,
-          padding: 8,
-          borderRadius: 6,
-          border: !isVisible ? "2px solid #2563eb" : "1px solid #e5e7eb",
-          background: !isVisible ? "#eff6ff" : "#fff",
-          color: !isVisible ? "#1d4ed8" : "#374151",
-          cursor: "pointer",
-          fontSize: 11,
-          fontWeight: !isVisible ? 700 : 400,
+          marginTop: 6,
+          fontSize: 9,
+          color: "#9ca3af",
+          lineHeight: 1.45,
         }}
       >
-        🚫 Hide
-      </button>
+        ⚡ Image generation needs the agent. The command is copied to your
+        clipboard — paste in chat and I'll call Gemini for you.
+      </div>
+
+      {sent && (
+        <div
+          style={{
+            marginTop: 6,
+            padding: "6px 8px",
+            background: "#f3e8ff",
+            borderRadius: 4,
+            fontSize: 9,
+            color: "#6b21a8",
+            fontFamily: "monospace",
+            wordBreak: "break-all",
+          }}
+        >
+          {cmd}
+        </div>
+      )}
     </div>
   );
 }
@@ -885,26 +963,38 @@ const PageBuilder: React.FC = () => {
   const [sections, setSections] = useState<any[]>([]);
   const [controls, setControls] = useState<any[]>([]);
   const [businessName, setBusinessName] = useState("");
+  const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
   const [changeCount, setChangeCount] = useState(0);
+  const [hoveredControl, setHoveredControl] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
 
-  // Only re-initialize from props when the structural identity changes,
-  // so user edits aren't wiped on every prop reference change.
-  const lastInitKey = useRef<string>("");
+  const lastPropsJson = useRef("");
 
   useEffect(() => {
     if (!props?.sections || !props?.suggestedControls) return;
-    const key =
-      props.sections.map((s: any) => s.id).join(",") +
-      "|" +
-      props.suggestedControls.map((c: any) => c.id).join(",") +
-      "|" +
-      (props.businessName || "");
-    if (key === lastInitKey.current) return;
 
-    setSections(JSON.parse(JSON.stringify(props.sections)));
-    setControls(JSON.parse(JSON.stringify(props.suggestedControls)));
-    setBusinessName(props.businessName || "");
-    lastInitKey.current = key;
+    const key = JSON.stringify({
+      name: props.businessName,
+      len: props.sections.length,
+      img: props.heroImageUrl ? "yes" : "no",
+      ids: props.sections.map((s: any) => s.id).join(","),
+    });
+
+    if (key !== lastPropsJson.current) {
+      lastPropsJson.current = key;
+      setSections(JSON.parse(JSON.stringify(props.sections)));
+      setControls(JSON.parse(JSON.stringify(props.suggestedControls)));
+      setBusinessName(props.businessName || "");
+      setHeroImageUrl(props.heroImageUrl || null);
+      setChangeCount(0);
+    }
+
+    // Sync image URL whenever the agent updates it (clears the loading skeleton)
+    if (props.heroImageUrl && props.heroImageUrl !== heroImageUrl) {
+      setHeroImageUrl(props.heroImageUrl);
+      setImageLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props]);
 
   if (isPending || !props || sections.length === 0) {
@@ -925,28 +1015,13 @@ const PageBuilder: React.FC = () => {
     );
   }
 
-  const handleControlChange = (control: any, newValue: string) => {
-    // Dev warning if a non-global target ID doesn't exist
-    if (
-      control.targetSectionId !== "*" &&
-      !sections.some((s) => s.id === control.targetSectionId)
-    ) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[PageBuilder] Control "${control.label}" targets unknown section "${control.targetSectionId}". Available IDs:`,
-        sections.map((s) => s.id),
-      );
-    }
-
+  const apply = (control: any, newValue: string) => {
     setSections((prev) =>
-      prev.map((s) => {
-        const isTarget =
-          control.targetSectionId === "*" ||
-          s.id === control.targetSectionId;
-        return isTarget
+      prev.map((s) =>
+        s.id === control.targetSectionId
           ? { ...s, [control.targetProperty]: newValue }
-          : s;
-      }),
+          : s,
+      ),
     );
     setControls((prev) =>
       prev.map((c) =>
@@ -955,24 +1030,18 @@ const PageBuilder: React.FC = () => {
     );
     setChangeCount((c) => c + 1);
   };
-
-  const getCurrentValue = (control: any): string => {
-    if (control.targetSectionId === "*") {
-      // For global controls, read from the first section that has the property,
-      // falling back to the control's tracked currentValue.
-      const withProp = sections.find(
-        (s) => s[control.targetProperty] !== undefined,
-      );
-      return (
-        withProp?.[control.targetProperty] ?? control.currentValue ?? ""
-      );
-    }
-    const section = sections.find((s) => s.id === control.targetSectionId);
-    return section?.[control.targetProperty] ?? control.currentValue ?? "";
+  const getVal = (control: any): string => {
+    const s = sections.find((s) => s.id === control.targetSectionId);
+    return s?.[control.targetProperty] || control.currentValue || "";
   };
 
-  const isHidden = (section: any) =>
-    section.visible === false || section.visible === "false";
+  // Triggered when the user hits "Generate" in the image prompt control.
+  // Shows the shimmer skeleton until the agent re-renders with a new heroImageUrl.
+  const handleImageRequest = (_prompt: string) => {
+    setImageLoading(true);
+    // Safety timeout in case the agent never returns
+    setTimeout(() => setImageLoading(false), 60000);
+  };
 
   return (
     <McpUseProvider autoSize>
@@ -983,8 +1052,8 @@ const PageBuilder: React.FC = () => {
           fontFamily: "system-ui, -apple-system, sans-serif",
         }}
       >
-        {/* LEFT: Page Preview */}
-        <div style={{ flex: 1, overflowY: "auto", background: "#ffffff" }}>
+        {/* LEFT: Preview */}
+        <div style={{ flex: 1, overflowY: "auto", background: "#fff" }}>
           <div
             style={{
               position: "sticky",
@@ -1000,9 +1069,7 @@ const PageBuilder: React.FC = () => {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span
-                style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}
-              >
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
                 📄 {businessName}
               </span>
               {changeCount > 0 && (
@@ -1016,7 +1083,21 @@ const PageBuilder: React.FC = () => {
                     fontWeight: 600,
                   }}
                 >
-                  {changeCount} change{changeCount > 1 ? "s" : ""}
+                  {changeCount} edit{changeCount > 1 ? "s" : ""}
+                </span>
+              )}
+              {imageLoading && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    background: "#f3e8ff",
+                    color: "#6b21a8",
+                    padding: "2px 8px",
+                    borderRadius: 10,
+                    fontWeight: 600,
+                  }}
+                >
+                  🎨 generating image
                 </span>
               )}
             </div>
@@ -1036,32 +1117,32 @@ const PageBuilder: React.FC = () => {
                 cursor: "pointer",
               }}
             >
-              {displayMode === "fullscreen"
-                ? "↙ Exit Fullscreen"
-                : "⛶ Fullscreen"}
+              {displayMode === "fullscreen" ? "↙ Exit" : "⛶ Fullscreen"}
             </button>
           </div>
-
-          {sections
-            .filter((s) => !isHidden(s))
-            .map((section) => (
-              <SectionRenderer key={section.id} section={section} />
-            ))}
+          {sections.map((s) => (
+            <SectionRenderer
+              key={s.id}
+              section={s}
+              heroImageUrl={s.type === "hero" ? heroImageUrl : null}
+              highlighted={hoveredControl === s.id}
+              imageLoading={s.type === "hero" && imageLoading}
+            />
+          ))}
         </div>
 
-        {/* RIGHT: Control Panel */}
+        {/* RIGHT: Controls */}
         <div
           style={{
             width: 290,
             overflowY: "auto",
             borderLeft: "1px solid #e5e7eb",
             background: "#fafafa",
-            padding: 16,
+            padding: 14,
             flexShrink: 0,
-            boxSizing: "border-box",
           }}
         >
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 14 }}>
             <div
               style={{
                 display: "flex",
@@ -1082,44 +1163,49 @@ const PageBuilder: React.FC = () => {
                 Controls
               </h2>
             </div>
-            <p style={{ fontSize: 11, color: "#9ca3af", margin: 0 }}>
-              AI-generated controls for your page. Changes apply instantly.
+            <p style={{ fontSize: 10, color: "#9ca3af", margin: 0 }}>
+              AI-generated for this page. Hover to highlight target.
             </p>
           </div>
 
-          {controls.map((control) => {
-            const val = getCurrentValue(control);
-            const targetLabel =
-              control.targetSectionId === "*"
-                ? "all sections"
-                : control.targetSectionId;
+          {controls.map((c) => {
+            const v = getVal(c);
             return (
               <div
-                key={control.id}
+                key={c.id}
+                onMouseEnter={() => setHoveredControl(c.targetSectionId)}
+                onMouseLeave={() => setHoveredControl(null)}
                 style={{
-                  background: "#ffffff",
+                  background: "#fff",
                   borderRadius: 10,
-                  padding: 14,
-                  marginBottom: 10,
-                  border: "1px solid #f3f4f6",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                  padding: 12,
+                  marginBottom: 8,
+                  border:
+                    hoveredControl === c.targetSectionId
+                      ? "1px solid #93c5fd"
+                      : "1px solid #f3f4f6",
+                  boxShadow:
+                    hoveredControl === c.targetSectionId
+                      ? "0 0 0 2px rgba(59,130,246,0.1)"
+                      : "0 1px 2px rgba(0,0,0,0.04)",
+                  transition: "all 0.2s",
                 }}
               >
                 <div
                   style={{
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: 600,
                     color: "#374151",
-                    marginBottom: 4,
+                    marginBottom: 3,
                   }}
                 >
-                  {control.label}
+                  {c.label}
                 </div>
                 <div
                   style={{
-                    fontSize: 10,
+                    fontSize: 9,
                     color: "#9ca3af",
-                    marginBottom: 10,
+                    marginBottom: 8,
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
@@ -1128,80 +1214,45 @@ const PageBuilder: React.FC = () => {
                   <span
                     style={{
                       display: "inline-block",
-                      width: 6,
-                      height: 6,
+                      width: 5,
+                      height: 5,
                       borderRadius: "50%",
                       background:
-                        control.targetSectionId === "*"
-                          ? "#8b5cf6"
-                          : "#10b981",
+                        c.type === "image_prompt" ? "#7c3aed" : "#10b981",
                     }}
                   />
-                  {targetLabel} → {control.targetProperty}
+                  {c.targetSectionId} → {c.targetProperty}
                 </div>
-
-                {control.type === "color_picker" && (
-                  <ColorPickerControl
-                    control={control}
-                    currentValue={val}
-                    onApply={(v) => handleControlChange(control, v)}
+                {c.type === "color_picker" && (
+                  <ColorPicker control={c} val={v} apply={(x) => apply(c, x)} />
+                )}
+                {c.type === "font_picker" && (
+                  <FontPicker control={c} val={v} apply={(x) => apply(c, x)} />
+                )}
+                {c.type === "spacing_slider" && (
+                  <SpacingSlider val={v} apply={(x) => apply(c, x)} />
+                )}
+                {c.type === "border_radius_slider" && (
+                  <BorderRadius val={v} apply={(x) => apply(c, x)} />
+                )}
+                {c.type === "tone_slider" && <ToneSlider control={c} />}
+                {c.type === "layout_toggle" && (
+                  <LayoutToggle
+                    control={c}
+                    val={v}
+                    apply={(x) => apply(c, x)}
                   />
                 )}
-                {control.type === "tone_slider" && (
-                  <ToneSliderControl
-                    control={control}
-                    onApply={(v) => handleControlChange(control, v)}
-                  />
+                {c.type === "text_editor" && (
+                  <TextEditor val={v} apply={(x) => apply(c, x)} />
                 )}
-                {control.type === "layout_toggle" && (
-                  <LayoutToggleControl
-                    control={control}
-                    currentValue={val}
-                    onApply={(v) => handleControlChange(control, v)}
-                  />
-                )}
-                {control.type === "text_editor" && (
-                  <TextEditorControl
-                    control={control}
-                    currentValue={val}
-                    onApply={(v) => handleControlChange(control, v)}
-                  />
-                )}
-                {control.type === "radius_slider" && (
-                  <RadiusSliderControl
-                    currentValue={val}
-                    onApply={(v) => handleControlChange(control, v)}
-                  />
-                )}
-                {control.type === "density_toggle" && (
-                  <DensityControl
-                    currentValue={val}
-                    onApply={(v) => handleControlChange(control, v)}
-                  />
-                )}
-                {control.type === "button_style" && (
-                  <ButtonStyleControl
-                    currentValue={val}
-                    onApply={(v) => handleControlChange(control, v)}
-                  />
-                )}
-                {control.type === "alignment" && (
-                  <AlignmentControl
-                    currentValue={val}
-                    onApply={(v) => handleControlChange(control, v)}
-                  />
-                )}
-                {control.type === "font_family" && (
-                  <FontFamilyControl
-                    control={control}
-                    currentValue={val}
-                    onApply={(v) => handleControlChange(control, v)}
-                  />
-                )}
-                {control.type === "visibility" && (
-                  <VisibilityControl
-                    currentValue={val}
-                    onApply={(v) => handleControlChange(control, v)}
+                {c.type === "image_prompt" && (
+                  <ImagePrompt
+                    control={c}
+                    val={v}
+                    apply={(x) => apply(c, x)}
+                    onRequest={handleImageRequest}
+                    hasCurrentImage={!!heroImageUrl}
                   />
                 )}
               </div>
@@ -1210,18 +1261,18 @@ const PageBuilder: React.FC = () => {
 
           <div
             style={{
-              marginTop: 12,
-              padding: 10,
+              marginTop: 10,
+              padding: 8,
               background: "#f0fdf4",
               borderRadius: 6,
               border: "1px solid #bbf7d0",
-              fontSize: 10,
+              fontSize: 9,
               color: "#166534",
-              lineHeight: 1.4,
+              lineHeight: 1.5,
             }}
           >
-            💡 Colors, layout, and text update instantly. Tone changes need
-            AI — click the command to copy, paste into chat.
+            💡 Colors, fonts, text, spacing, and roundness update instantly.
+            Tone and image generation need AI — click to copy, paste into chat.
           </div>
         </div>
       </div>

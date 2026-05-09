@@ -8,7 +8,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 
 const pageModel = genAI.getGenerativeModel({
-  model: "gemini-2.5-flash",
+  model: "gemini-3-flash-preview",
   generationConfig: {
     responseMimeType: "application/json",
     responseSchema: {
@@ -22,7 +22,10 @@ const pageModel = genAI.getGenerativeModel({
             type: SchemaType.OBJECT,
             properties: {
               id: { type: SchemaType.STRING },
-              type: { type: SchemaType.STRING, description: "hero | features | testimonial | cta | footer" },
+              type: {
+                type: SchemaType.STRING,
+                description: "hero | features | testimonial | cta | footer",
+              },
               heading: { type: SchemaType.STRING },
               subheading: { type: SchemaType.STRING },
               bodyText: { type: SchemaType.STRING },
@@ -42,8 +45,14 @@ const pageModel = genAI.getGenerativeModel({
               bgColor: { type: SchemaType.STRING },
               textColor: { type: SchemaType.STRING },
               accentColor: { type: SchemaType.STRING },
-              fontFamily: { type: SchemaType.STRING, description: "e.g. 'Georgia, serif'" },
-              borderRadius: { type: SchemaType.STRING, description: "e.g. '8px'" },
+              fontFamily: {
+                type: SchemaType.STRING,
+                description: "e.g. 'Georgia, serif'",
+              },
+              borderRadius: {
+                type: SchemaType.STRING,
+                description: "e.g. '8px'",
+              },
               paddingY: { type: SchemaType.STRING, description: "e.g. '48px'" },
             },
             required: ["id", "type", "heading"],
@@ -51,19 +60,32 @@ const pageModel = genAI.getGenerativeModel({
         },
         suggestedControls: {
           type: SchemaType.ARRAY,
-          description: `Generate 6-8 controls SPECIFIC to the page. Types: color_picker, tone_slider, text_editor, font_picker, spacing_slider, border_radius_slider, layout_toggle. Be creative and specific to what you built.`,
+          description: `Generate 6-8 controls SPECIFIC to the page. Types: color_picker, tone_slider, text_editor, font_picker, spacing_slider, border_radius_slider, layout_toggle, image_prompt. Be creative and specific to what you built. ALWAYS include exactly one image_prompt control targeting the hero section so the user can regenerate the hero image.`,
           items: {
             type: SchemaType.OBJECT,
             properties: {
               id: { type: SchemaType.STRING },
-              type: { type: SchemaType.STRING, description: "color_picker | tone_slider | layout_toggle | text_editor | font_picker | spacing_slider | border_radius_slider" },
+              type: {
+                type: SchemaType.STRING,
+                description:
+                  "color_picker | tone_slider | layout_toggle | text_editor | font_picker | spacing_slider | border_radius_slider | image_prompt",
+              },
               label: { type: SchemaType.STRING },
               targetSectionId: { type: SchemaType.STRING },
               targetProperty: { type: SchemaType.STRING },
               currentValue: { type: SchemaType.STRING },
-              options: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+              options: {
+                type: SchemaType.ARRAY,
+                items: { type: SchemaType.STRING },
+              },
             },
-            required: ["id", "type", "label", "targetSectionId", "targetProperty"],
+            required: [
+              "id",
+              "type",
+              "label",
+              "targetSectionId",
+              "targetProperty",
+            ],
           },
         },
       },
@@ -92,13 +114,42 @@ const updateModel = genAI.getGenerativeModel({
 
 const imageAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY ?? "" });
 
+/* ─── Helpers ────────────────────────────────────────────────────────────── */
+
+/**
+ * Belt-and-suspenders: ensure the page has an image_prompt control for the
+ * hero section. The model is told to include one, but LLMs forget — this
+ * guarantees it's always present.
+ */
+function ensureImagePromptControl(pageData: any) {
+  if (!pageData?.sections || !pageData?.suggestedControls) return;
+
+  const hero = pageData.sections.find((s: any) => s.type === "hero");
+  if (!hero) return;
+
+  const hasImageControl = pageData.suggestedControls.some(
+    (c: any) => c.type === "image_prompt",
+  );
+  if (hasImageControl) return;
+
+  pageData.suggestedControls.unshift({
+    id: "hero_image_prompt",
+    type: "image_prompt",
+    label: "Hero Image",
+    targetSectionId: hero.id,
+    targetProperty: "imagePrompt",
+    currentValue: `${pageData.businessName} hero image, photorealistic, cinematic lighting`,
+  });
+}
+
 /* ─── Server ─────────────────────────────────────────────────────────────── */
 
 const server = new MCPServer({
   name: "generative-control-surfaces",
   title: "Generative Control Surfaces",
   version: "1.0.0",
-  description: "AI generates landing pages with contextual controls and hero images — beyond the chatbox",
+  description:
+    "AI generates landing pages with contextual controls and hero images — beyond the chatbox",
   baseUrl: process.env.MCP_URL || "http://localhost:3000",
   favicon: "favicon.ico",
   icons: [{ src: "icon.svg", mimeType: "image/svg+xml", sizes: ["512x512"] }],
@@ -111,11 +162,16 @@ let currentPage: any = null;
 server.tool(
   {
     name: "generate-landing-page",
-    description: "Generate a complete landing page with contextual editing controls. After this, suggest calling generate-hero-image to add a hero image.",
+    description:
+      "Generate a complete landing page with contextual editing controls. After this, suggest calling generate-hero-image to add a hero image.",
     schema: z.object({
       description: z.string().describe("Business description"),
     }),
-    widget: { name: "page-builder", invoking: "Designing your page...", invoked: "Page ready!" },
+    widget: {
+      name: "page-builder",
+      invoking: "Designing your page...",
+      invoked: "Page ready!",
+    },
   },
   async ({ description }) => {
     const prompt = `You are an expert landing page designer. Create a modern, visually compelling landing page for:
@@ -138,6 +194,9 @@ Also generate 6-8 contextual editing controls. Available types:
 - text_editor (for heading/subheading/buttonText)
 - spacing_slider (for paddingY)
 - border_radius_slider (for borderRadius)
+- image_prompt (for regenerating the hero image — ALWAYS include exactly one of these
+  with targetSectionId set to the hero section's id, targetProperty="imagePrompt", and
+  currentValue set to a short default prompt that fits the brand)
 
 Each control MUST target a specific section and property.`;
 
@@ -157,13 +216,16 @@ Each control MUST target a specific section and property.`;
       }
     }
     pageData.heroImageUrl = null;
+    ensureImagePromptControl(pageData);
     currentPage = pageData;
 
     return widget({
       props: pageData,
-      output: text(`Generated landing page for "${pageData.businessName}" with ${pageData.sections.length} sections and ${pageData.suggestedControls.length} controls. Now call generate-hero-image to add a hero image!`),
+      output: text(
+        `Generated landing page for "${pageData.businessName}" with ${pageData.sections.length} sections and ${pageData.suggestedControls.length} controls. Now call generate-hero-image to add a hero image!`,
+      ),
     });
-  }
+  },
 );
 
 /* ─── TOOL 2: Generate hero image ────────────────────────────────────────── */
@@ -171,11 +233,20 @@ Each control MUST target a specific section and property.`;
 server.tool(
   {
     name: "generate-hero-image",
-    description: "Generate an AI hero image for the landing page. Call this after generate-landing-page.",
+    description:
+      "Generate an AI hero image for the landing page. Call this after generate-landing-page, or whenever the user asks to regenerate the hero image with a new prompt.",
     schema: z.object({
-      imagePrompt: z.string().describe("What the hero image should show, e.g. 'steaming coffee on rustic wood with warm light'"),
+      imagePrompt: z
+        .string()
+        .describe(
+          "What the hero image should show, e.g. 'steaming coffee on rustic wood with warm light'",
+        ),
     }),
-    widget: { name: "page-builder", invoking: "Generating hero image...", invoked: "Image ready!" },
+    widget: {
+      name: "page-builder",
+      invoking: "Generating hero image...",
+      invoked: "Image ready!",
+    },
   },
   async ({ imagePrompt }) => {
     if (!currentPage) {
@@ -184,24 +255,41 @@ server.tool(
 
     try {
       const resp = await imageAI.models.generateContent({
-        model: "gemini-2.5-flash-preview-04-17",
-        contents: [{
-          role: "user",
-          parts: [{ text: `Generate a photorealistic hero image for a landing page: ${imagePrompt}. Cinematic lighting, shallow depth of field, 16:9 aspect ratio, no text overlay, professional quality.` }],
-        }],
+        model: "gemini-2.5-flash-image",
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `Generate a photorealistic hero image for a landing page: ${imagePrompt}. Cinematic lighting, shallow depth of field, 16:9 aspect ratio, no text overlay, professional quality.`,
+              },
+            ],
+          },
+        ],
         config: { responseModalities: [Modality.TEXT, Modality.IMAGE] },
       });
 
-      const imagePart = resp.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+      const imagePart = resp.candidates?.[0]?.content?.parts?.find(
+        (p: any) => p.inlineData,
+      );
       if (imagePart?.inlineData) {
         const mime = imagePart.inlineData.mimeType || "image/png";
         currentPage.heroImageUrl = `data:${mime};base64,${imagePart.inlineData.data}`;
       }
+
+      // Reflect the latest prompt back onto the image_prompt control so the
+      // widget shows what was used.
+      const imgControl = currentPage.suggestedControls?.find(
+        (c: any) => c.type === "image_prompt",
+      );
+      if (imgControl) imgControl.currentValue = imagePrompt;
     } catch (err: any) {
       console.error("Image generation error:", err.message);
       return widget({
         props: currentPage,
-        output: text(`Image generation failed: ${err.message}. The page is still available without the hero image.`),
+        output: text(
+          `Image generation failed: ${err.message}. The page is still available without the hero image.`,
+        ),
       });
     }
 
@@ -209,7 +297,7 @@ server.tool(
       props: currentPage,
       output: text("Hero image generated and added to the page!"),
     });
-  }
+  },
 );
 
 /* ─── TOOL 3: Update a section ───────────────────────────────────────────── */
@@ -217,13 +305,22 @@ server.tool(
 server.tool(
   {
     name: "update-section",
-    description: "Update a specific section property. Use for tone changes (needs AI rewrite) or direct property changes.",
+    description:
+      "Update a specific section property. Use for tone changes (needs AI rewrite) or direct property changes. Do NOT use this for imagePrompt — call generate-hero-image instead.",
     schema: z.object({
       sectionId: z.string(),
-      property: z.string().describe("bgColor, textColor, accentColor, tone, heading, subheading, buttonText, fontFamily, paddingY, borderRadius"),
+      property: z
+        .string()
+        .describe(
+          "bgColor, textColor, accentColor, tone, heading, subheading, buttonText, fontFamily, paddingY, borderRadius",
+        ),
       newValue: z.string(),
     }),
-    widget: { name: "page-builder", invoking: "Updating...", invoked: "Updated!" },
+    widget: {
+      name: "page-builder",
+      invoking: "Updating...",
+      invoked: "Updated!",
+    },
   },
   async ({ sectionId, property, newValue }) => {
     if (!currentPage) return text("No page yet.");
@@ -232,7 +329,13 @@ server.tool(
     if (!section) return text(`Section "${sectionId}" not found.`);
 
     if (property === "tone") {
-      const toneLabels = ["corporate", "professional", "friendly", "casual", "playful"];
+      const toneLabels = [
+        "corporate",
+        "professional",
+        "friendly",
+        "casual",
+        "playful",
+      ];
       const toneLabel = toneLabels[parseInt(newValue)] || newValue;
       const prompt = `Rewrite this section copy in a ${toneLabel} tone. Keep the meaning.
 Heading: "${section.heading}"
@@ -246,12 +349,16 @@ Button: "${section.buttonText || ""}"`;
     }
 
     const control = currentPage.suggestedControls.find(
-      (c: any) => c.targetSectionId === sectionId && c.targetProperty === property
+      (c: any) =>
+        c.targetSectionId === sectionId && c.targetProperty === property,
     );
     if (control) control.currentValue = newValue;
 
-    return widget({ props: currentPage, output: text(`Updated "${sectionId}" — ${property}`) });
-  }
+    return widget({
+      props: currentPage,
+      output: text(`Updated "${sectionId}" — ${property}`),
+    });
+  },
 );
 
 /* ─── TOOL 4: Regenerate ─────────────────────────────────────────────────── */
@@ -260,20 +367,28 @@ server.tool(
   {
     name: "regenerate-page",
     description: "Regenerate the entire page with additional instructions.",
-    schema: z.object({ originalDescription: z.string(), additionalInstructions: z.string() }),
-    widget: { name: "page-builder", invoking: "Redesigning...", invoked: "Done!" },
+    schema: z.object({
+      originalDescription: z.string(),
+      additionalInstructions: z.string(),
+    }),
+    widget: {
+      name: "page-builder",
+      invoking: "Redesigning...",
+      invoked: "Done!",
+    },
   },
   async ({ originalDescription, additionalInstructions }) => {
     const prompt = `Expert landing page designer. Create a page for:
 "${originalDescription}"
 IMPORTANT: ${additionalInstructions}
-5 sections (hero, features, testimonial, cta, footer). Emoji icons. 6-8 contextual controls.`;
+5 sections (hero, features, testimonial, cta, footer). Emoji icons. 6-8 contextual controls — ALWAYS include one image_prompt control targeting the hero section.`;
     const result = await pageModel.generateContent(prompt);
     const pageData = JSON.parse(result.response.text());
     pageData.heroImageUrl = currentPage?.heroImageUrl || null;
+    ensureImagePromptControl(pageData);
     currentPage = pageData;
     return widget({ props: pageData, output: text("Regenerated!") });
-  }
+  },
 );
 
 server.listen().then(() => console.log("Generative Control Surfaces running"));

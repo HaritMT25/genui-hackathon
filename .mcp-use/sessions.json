@@ -955,5 +955,170 @@
       "description": "mcp-use is a complete TypeScript framework for building and using MCP"
     },
     "protocolVersion": "unknown"
+  },
+  "aa071873-bc8d-4215-a5f8-5c676e498e63": {
+    "lastAccessedAt": 1778359967710,
+    "clientCapabilities": {
+      "sampling": {},
+      "elicitation": {
+        "form": {},
+        "url": {}
+      },
+      "roots": {
+        "listChanged": true
+      },
+      "extensions": {
+        "io.modelcontextprotocol/ui": {
+          "mimeTypes": [
+            "text/html;profile=mcp-app"
+          ]
+        }
+      }
+    },
+    "clientInfo": {
+      "name": "mcp-use Inspector",
+      "title": "mcp-use",
+      "icons": [
+        {
+          "src": "https://mcp-use.com/logo.png"
+        }
+      ],
+      "version": "5.0.0",
+      "websiteUrl": "https://mcp-use.com",
+      "description": "mcp-use is a complete TypeScript framework for building and using MCP"
+    },
+    "protocolVersion": "unknown"
+  },
+  "f2995074-1503-4734-9844-daffc15f6261": {
+    "lastAccessedAt": 1778360081593,
+    "clientCapabilities": {
+      "sampling": {},
+      "elicitation": {
+        "form": {},
+        "url": {}
+      },
+      "roots": {
+        "listChanged": true
+      },
+      "extensions": {
+        "io.modelcontextprotocol/ui": {
+          "mimeTypes": [
+            "text/html;profile=mcp-app"
+          ]
+        }
+      }
+    },
+    "clientInfo": {
+      "name": "mcp-use Inspector",
+      "title": "mcp-use",
+      "icons": [
+        {
+          "src": "https://mcp-use.com/logo.png"
+        }
+      ],
+      "version": "5.0.0",
+      "websiteUrl": "https://mcp-use.com",
+      "description": "mcp-use is a complete TypeScript framework for building and using MCP"
+    },
+    "protocolVersion": "unknown"
+  },
+  "aed9e908-0674-4d24-99fd-df04eea9cae8": {
+    "lastAccessedAt": 1778360911188,
+    "clientCapabilities": {
+      "sampling": {},
+      "elicitation": {
+        "form": {},
+        "url": {}
+      },
+      "roots": {
+        "listChanged": true
+      },
+      "extensions": {
+        "io.modelcontextprotocol/ui": {
+          "mimeTypes": [
+            "text/html;profile=mcp-app"
+          ]
+        }
+      }
+    },
+    "clientInfo": {
+      "name": "mcp-use Inspector",
+      "title": "mcp-use",
+      "icons": [
+        {
+          "src": "https://mcp-use.com/logo.png"
+        }
+      ],
+      "version": "5.0.0",
+      "websiteUrl": "https://mcp-use.com",
+      "description": "mcp-use is a complete TypeScript framework for building and using MCP"
+    },
+    "protocolVersion": "unknown"
+  },
+  "2e24463c-5f6f-4bbc-8686-f975b0d906f9": {
+    "lastAccessedAt": 1778361596452,
+    "clientCapabilities": {
+      "sampling": {},
+      "elicitation": {
+        "form": {},
+        "url": {}
+      },
+      "roots": {
+        "listChanged": true
+      },
+      "extensions": {
+        "io.modelcontextprotocol/ui": {
+          "mimeTypes": [
+            "text/html;profile=mcp-app"
+          ]
+        }
+      }
+    },
+    "clientInfo": {
+      "name": "mcp-use Inspector",
+      "title": "mcp-use",
+      "icons": [
+        {
+          "src": "https://mcp-use.com/logo.png"
+        }
+      ],
+      "version": "5.0.0",
+      "websiteUrl": "https://mcp-use.com",
+      "description": "mcp-use is a complete TypeScript framework for building and using MCP"
+    },
+    "protocolVersion": "unknown"
+  },
+  "20988bdc-edf1-4349-9e0f-49c6c349b596": {
+    "lastAccessedAt": 1778361770160,
+    "clientCapabilities": {
+      "sampling": {},
+      "elicitation": {
+        "form": {},
+        "url": {}
+      },
+      "roots": {
+        "listChanged": true
+      },
+      "extensions": {
+        "io.modelcontextprotocol/ui": {
+          "mimeTypes": [
+            "text/html;profile=mcp-app"
+          ]
+        }
+      }
+    },
+    "clientInfo": {
+      "name": "mcp-use Inspector",
+      "title": "mcp-use",
+      "icons": [
+        {
+          "src": "https://mcp-use.com/logo.png"
+        }
+      ],
+      "version": "5.0.0",
+      "websiteUrl": "https://mcp-use.com",
+      "description": "mcp-use is a complete TypeScript framework for building and using MCP"
+    },
+    "protocolVersion": "unknown"
   }
 }

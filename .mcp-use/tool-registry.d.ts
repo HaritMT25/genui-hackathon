@@ -1,6 +1,6 @@
 // Auto-generated tool registry types - DO NOT EDIT MANUALLY
 // This file is regenerated whenever tools are added, removed, or updated during development
-// Generated at: 2026-05-09T19:28:34.802Z
+// Generated at: 2026-05-09T21:08:27.797Z
 
 declare module "mcp-use/react" {
   interface ToolRegistry {
