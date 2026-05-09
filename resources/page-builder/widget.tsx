@@ -1,5 +1,5 @@
 import { McpUseProvider, useWidget, type WidgetMetadata } from "mcp-use/react";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "../styles.css";
 import { propSchema, type PageBuilderProps } from "./types";
 
@@ -292,12 +292,25 @@ const PageBuilder: React.FC = () => {
   const [changeCount, setChangeCount] = useState(0);
   const [hoveredControl, setHoveredControl] = useState<string | null>(null);
 
-  useEffect(() => {
+const propsLoaded = useRef(false);
+const lastPropsJson = useRef("");
+
+useEffect(() => {
     if (props?.sections && props?.suggestedControls) {
-      setSections(JSON.parse(JSON.stringify(props.sections)));
-      setControls(JSON.parse(JSON.stringify(props.suggestedControls)));
-      setBusinessName(props.businessName || "");
-      setHeroImageUrl(props.heroImageUrl || null);
+      const key = JSON.stringify({
+        name: props.businessName,
+        len: props.sections.length,
+        img: props.heroImageUrl ? "yes" : "no",
+        ids: props.sections.map((s: any) => s.id).join(","),
+      });
+      if (key !== lastPropsJson.current) {
+        lastPropsJson.current = key;
+        setSections(JSON.parse(JSON.stringify(props.sections)));
+        setControls(JSON.parse(JSON.stringify(props.suggestedControls)));
+        setBusinessName(props.businessName || "");
+        setHeroImageUrl(props.heroImageUrl || null);
+        setChangeCount(0);
+      }
     }
   }, [props]);
 

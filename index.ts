@@ -142,7 +142,20 @@ Also generate 6-8 contextual editing controls. Available types:
 Each control MUST target a specific section and property.`;
 
     const result = await pageModel.generateContent(prompt);
-    const pageData = JSON.parse(result.response.text());
+    let rawText = result.response.text();
+    let pageData;
+    try {
+      pageData = JSON.parse(rawText);
+    } catch (e) {
+      // Try to fix truncated JSON by finding the last complete object
+      const lastBrace = rawText.lastIndexOf("}");
+      if (lastBrace > 0) {
+        rawText = rawText.substring(0, lastBrace + 1);
+        pageData = JSON.parse(rawText);
+      } else {
+        return text("Generation failed — please try again.");
+      }
+    }
     pageData.heroImageUrl = null;
     currentPage = pageData;
 
